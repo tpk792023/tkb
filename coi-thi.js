@@ -194,7 +194,7 @@ function bindExam(){
   $("gFind").addEventListener("input",renderExam);$("gSite").addEventListener("change",renderExam);
   $("gAll").onclick=()=>{exPool().forEach(t=>delete E().excl[t.id]);persist();renderExam()};
   $("gNone").onclick=()=>{exPool().forEach(t=>E().excl[t.id]=true);persist();renderExam()};
-  $("gNoBGH").onclick=()=>{exPool().forEach(t=>{if(/hieu truong|hieu pho|pho hieu/.test(norm(t.role||"")))E().excl[t.id]=true});persist();renderExam();toast("Đã bỏ BGH khỏi danh sách coi thi")};
+  $("gNoBGH").onclick=()=>{exPool().forEach(t=>{if(isBGH(t))E().excl[t.id]=true});persist();renderExam();toast("Đã bỏ BGH khỏi danh sách coi thi")};
   $("exSeg").onclick=e=>{const b=e.target.closest("button");if(!b)return;exView=b.dataset.v;document.querySelectorAll("#exSeg button").forEach(x=>x.classList.toggle("on",x===b));renderExamResult()};
   $("exRes").addEventListener("change",e=>{const sel=e.target;if(!sel.dataset.s)return;const o=E().result[sel.dataset.s]=E().result[sel.dataset.s]||{rooms:{},reserve:{}};
     const arr=sel.dataset.r?(o.rooms[sel.dataset.r]=o.rooms[sel.dataset.r]||[]):((o.reserve=o.reserve||{})[sel.dataset.res]=o.reserve[sel.dataset.res]||[]);

@@ -763,9 +763,14 @@ function renderPick(){
 /* ---------- Nhập TKB toàn trường từ Excel ---------- */
 const SUBJ_ALIAS={"the duc":"TD","gdtc":"TD","td":"TD","van":"Văn","ngu van":"Văn","nv":"Văn","anh":"Anh","av":"Anh","tieng anh":"Anh","t.anh":"Anh","ta":"Anh","hdtn":"HĐTN","hdtn-hn":"HĐTN","hdtnhn":"HĐTN","hdtn,hn":"HĐTN","trai nghiem":"HĐTN",
   "gddp":"ĐP","ndgddp":"ĐP","dia phuong":"ĐP","giao duc dia phuong":"ĐP","cn":"CN","cong nghe":"CN","tin":"Tin","tin hoc":"Tin","gdcd":"GDCD","cong dan":"GDCD","ls-dl":"Sử-Địa","ls - dl":"Sử-Địa","ls&dl":"Sử-Địa","ls dl":"Sử-Địa","su-dia":"Sử-Địa","lich su va dia li":"Sử-Địa","lich su va dia ly":"Sử-Địa","lich su - dia li":"Sử-Địa",
-  "khtn":"KHTN","khoa hoc tu nhien":"KHTN","toan":"Toán","nghe thuat":"NT","nt":"NT","am nhac":"NT","my thuat":"NT","mi thuat":"NT","shl":"SHL","shcn":"SHL","sinh hoat":"SHL","sinh hoat lop":"SHL","sinh hoat chu nhiem":"SHL","cc":"CC","chao co":"CC","chao co dau tuan":"CC"};
+  "khtn":"KHTN","khoa hoc tu nhien":"KHTN","toan":"Toán","nghe thuat":"NT","nt":"NT","am nhac":"NT","my thuat":"NT","mi thuat":"NT","shl":"SHL","shcn":"SHL","sinh hoat":"SHL","sinh hoat lop":"SHL","sinh hoat chu nhiem":"SHL","cc":"CC","chao co":"CC","chao co dau tuan":"CC",
+  "hoa hoc":"KHTN","vat ly":"KHTN","vat li":"KHTN","sinh hoc":"KHTN","lich su":"Sử-Địa","dia li":"Sử-Địa","dia ly":"Sử-Địa","lich su-dia li":"Sử-Địa","lich su - dia ly":"Sử-Địa",
+  "nt am nhac":"NT","nt mi thuat":"NT","nt my thuat":"NT","an":"NT","mt":"NT","gdtc":"TD"};
+const SUBJ_PREFIX={v:"Văn",s:"Sử-Địa",d:"Sử-Địa",h:"KHTN",ly:"KHTN",li:"KHTN",sinh:"KHTN",hoa:"KHTN",toan:"Toán",anh:"Anh"};
+function matchSubjs(txt){const out=[];String(txt||"").split(/[,;/+:]|s-s/).forEach(p=>{p=p.replace(/[1-9]A[d,]*/gi,"").replace(/Ks*[d,]+/g,"").trim();if(!p)return;
+  let x=findSubj(p);if(!x){const k=norm(p);if(SUBJ_PREFIX[k])x=S.subjects.find(s=>s.short===SUBJ_PREFIX[k])}if(x&&!out.includes(x.id))out.push(x.id)});return out}
 function findSubj(n){const k=norm(String(n||""));if(!k)return null;return S.subjects.find(x=>norm(x.short)===k||norm(x.name)===k)||(SUBJ_ALIAS[k]&&S.subjects.find(x=>x.short===SUBJ_ALIAS[k]))||(k.startsWith("chao co")?S.subjects.find(isFlag):null)}
-function matchSubj(s){const p=String(s||"").split(/[,;\/+]/)[0];const x=findSubj(p);if(x)return x.id;const k=norm(p);if(!k)return"";const y=S.subjects.find(x=>norm(x.name).includes(k)||k.includes(norm(x.name)));return y?y.id:""}
+function matchSubj(s){const a=matchSubjs(s);if(a.length)return a[0];const p=String(s||"").split(/[,;\/+]/)[0];const k=norm(p);if(!k)return"";const y=S.subjects.find(x=>norm(x.name).includes(k)||k.includes(norm(x.name)));return y?y.id:""}
 const baseName=n=>String(n||"").replace(/\s*\(.*\)\s*$/,"").trim();
 const lastWord=n=>{const p=baseName(n).split(/\s+/);return p[p.length-1]||""};
 function rowsOf(ws){
@@ -826,69 +831,119 @@ function importMaster(inp){
     S.classes=clsNames.map(n=>{const g=parseInt(n);const my=cells.filter(c=>c.cn===n);const hasS=my.some(c=>c.s==="S"),hasC=my.some(c=>c.s==="C");
       return{id:uid(),name:n,grade:GRADES.includes(g)?g:6,ses:hasS&&hasC?"both":hasC?"C":"S",gvcn:"",site:old[n]?old[n].site||defSite:defSite}});
     cells.forEach(c=>{c.cl=S.classes.find(x=>x.name===c.cn);c.k=c.d+"-"+c.s+"-"+c.p});
-    // ---- ghép giáo viên theo tên gọi trên TKB
-    const cands=short=>{const k=norm(short);return S.teachers.filter(t=>capOf(t)!=="TH"&&(norm(t.name)===k||norm(t.alias||"")===k||norm(baseName(t.name))===k||norm(lastWord(t.name))===k))};
-    const busy={};const mark=(t,c)=>busy[t+"|"+c.k]=(busy[t+"|"+c.k]||0)+1;
-    const homeroom=x=>isSHL(x)||x.short==="HĐTN";
-    const pending=[],unknown={};let created=0;
-    for(const c of cells){if(!c.t)continue;const L=cands(c.t);
-      if(L.length===1){c.tid=L[0].id;mark(c.tid,c)}
-      else if(L.length>1){const m=L.filter(t=>t.subj===c.x.id);if(m.length===1){c.tid=m[0].id;mark(c.tid,c)}else pending.push({c,L})}
-      else (unknown[norm(c.t)]=unknown[norm(c.t)]||[]).push(c)}
-    for(const k in unknown){const list=unknown[k],nm=list[0].t.trim();const slot={};let clash=false;
-      list.forEach(c=>{if(slot[c.k]&&slot[c.k]!==c.cn)clash=true;slot[c.k]=c.cn});
-      if(!clash){const t={id:uid(),name:nm,alias:nm,subj:"",off:[],fromTkb:true};S.teachers.push(t);created++;list.forEach(c=>{c.tid=t.id;mark(t.id,c)});continue}
-      const subs=[...new Set(list.filter(c=>!homeroom(c.x)&&!isFlag(c.x)).map(c=>c.x.id))];const V={};
-      subs.forEach(xid=>{const t={id:uid(),name:`${nm} (${subj(xid).short})`,alias:nm,subj:xid,off:[],fromTkb:true};S.teachers.push(t);created++;V[xid]=t});
-      if(!subs.length){const t={id:uid(),name:nm,alias:nm,subj:"",off:[],fromTkb:true};S.teachers.push(t);created++;V._=t}
-      list.filter(c=>V[c.x.id]).forEach(c=>{c.tid=V[c.x.id].id;mark(c.tid,c)});
-      list.filter(c=>!c.tid).forEach(c=>pending.push({c,L:Object.values(V)}))}
-    for(const {c,L} of pending){const teach=t=>cells.some(o=>o.tid===t.id&&o.cn===c.cn);
-      const pk=L.find(t=>!busy[t.id+"|"+c.k]&&teach(t))||L.find(t=>!busy[t.id+"|"+c.k])||L[0];c.tid=pk.id;mark(pk.id,c)}
-    // ---- dựng TKB
-    S.assign={};S.tkb={};S.tkbT={};const cnt={},tcount={};
-    for(const c of cells){const cid=c.cl.id,x=c.x;(S.tkb[cid]=S.tkb[cid]||{})[c.k]=x.id;(S.tkbT[cid]=S.tkbT[cid]||{})[c.k]=c.tid||"";
-      const k=cid+"|"+x.id;cnt[k]=(cnt[k]||0)+1;if(c.tid){const kk=k+"|"+c.tid;tcount[kk]=(tcount[kk]||0)+1}}
-    for(const kk in tcount){const[cid,xid,t]=kk.split("|"),a=S.assign[cid]=S.assign[cid]||{};if(!a[xid]||tcount[cid+"|"+xid+"|"+a[xid]]<tcount[kk])a[xid]=t}
-    const shl=S.subjects.find(isSHL);
-    for(const cl of S.classes){if(shl&&S.assign[cl.id]&&S.assign[cl.id][shl.id]){cl.gvcn=S.assign[cl.id][shl.id];S.assign[cl.id][shl.id]="__gvcn"}}
-    for(const t of S.teachers){if(t.subj&&!t.fromTkb)continue;const m={};for(const kk in tcount){const[,xid,tt]=kk.split("|");if(tt===t.id&&!homeroom(subj(xid)))m[xid]=(m[xid]||0)+tcount[kk]}const b=Object.keys(m).sort((a,b)=>m[b]-m[a])[0];if(b)t.subj=b}
-    for(const x of S.subjects)for(const g of GRADES){const v=S.classes.filter(c=>c.grade===g).map(c=>cnt[c.id+"|"+x.id]||0);if(!v.length){x.n[g]=0;continue}
+    // ---- dựng TKB, giữ tên gọi gốc của từng ô để ghép lại khi có danh sách GV
+    S.assign={};S.tkb={};S.tkbT={};S.tkbRaw={};
+    for(const c of cells){const cid=c.cl.id;(S.tkb[cid]=S.tkb[cid]||{})[c.k]=c.x.id;if(c.t)(S.tkbRaw[cid]=S.tkbRaw[cid]||{})[c.k]=c.t.trim()}
+    S.classes.forEach(cl=>{const t=S.teachers.find(t=>t.cn===cl.name&&!t.fromTkb);if(t)cl.gvcn=t.id});
+    const R=relinkTkb();
+    for(const x of S.subjects)for(const g of GRADES){const v=S.classes.filter(c=>c.grade===g).map(c=>Object.values(S.tkb[c.id]||{}).filter(id=>id===x.id).length);if(!v.length){x.n[g]=0;continue}
       const f={};v.forEach(n=>f[n]=(f[n]||0)+1);x.n[g]=+Object.keys(f).sort((a,b)=>f[b]-f[a]||b-a)[0]}
     history=[];persist();renderCfg();view="class";pick=S.classes[0].id;showTab("tkb");
     const ev=evaluateAll();
-    toast(`Đã nhập ${S.classes.length} lớp, ${cells.length} tiết. ${created?`Tạo tạm ${created} GV theo tên gọi — tải danh sách GV để ghép họ tên đầy đủ. `:""}${ev.conflicts?`⚠️ ${ev.conflicts} chỗ trùng giờ`:"Không trùng giờ GV."}`,6000);
+    toast(`Đã nhập ${S.classes.length} lớp, ${cells.length} tiết. ${R.linked} tên gọi ghép được với danh sách GV${R.temp?`, ${R.temp} tên tạm (chưa có trong danh sách GV)`:""}. ${ev.conflicts?`⚠️ ${ev.conflicts} chỗ trùng giờ`:"Không trùng giờ GV."}`,7000);
   }catch(e){console.error(e);alert("Không đọc được file: "+e.message)}};rd.readAsArrayBuffer(f)}
 
-/* ---------- Tải lên danh sách giáo viên ---------- */
+/* ---------- Ghép tên gọi trên TKB với giáo viên ----------
+   S.tkbRaw[lớp][ô] = tên gọi gốc trong file TKB (Tiền, Phượng…). Mỗi lần có danh sách GV mới thì ghép lại. */
+const homeroomSub=x=>x&&(isSHL(x)||x.short==="HĐTN");
+const teachesSubj=(t,xid)=>t.subj===xid||(t.subjs||[]).includes(xid);
+function relinkTkb(){
+  if(!S.tkb||!S.tkbRaw)return{linked:0,temp:0};
+  const list=S.teachers.filter(t=>capOf(t)!=="TH"&&!t.fromTkb);
+  const cands=short=>{const k=norm(short);return list.filter(t=>norm(t.alias||"")===k||norm(lastWord(t.name))===k||norm(t.name)===k)};
+  const cells=[];
+  for(const c of S.classes){const raw=S.tkbRaw[c.id]||{},g=S.tkb[c.id]||{};for(const k in g){const x=subj(g[k]);if(!x||isFlag(x))continue;cells.push({cl:c,k,x,t:raw[k]||""})}}
+  const busy={},mark=(id,c)=>{c.tid=id;busy[id+"|"+c.k]=1};
+  const pending=[],unknown={};
+  for(const c of cells){if(!c.t)continue;const L=cands(c.t);
+    if(L.length===1)mark(L[0].id,c);
+    else if(L.length>1){let m=L.filter(t=>teachesSubj(t,c.x.id));
+      if(homeroomSub(c.x)){const h=L.filter(t=>t.cn===c.cl.name);if(h.length===1)m=h}
+      if(m.length>1){const tc=m.filter(t=>(t.teach||[]).includes(c.cl.name));if(tc.length)m=tc}
+      if(m.length===1)mark(m[0].id,c);else pending.push({c,L:m.length?m:L})}
+    else (unknown[norm(c.t)]=unknown[norm(c.t)]||[]).push(c)}
+  // tên chưa có trong danh sách: tạo GV tạm (tách theo môn nếu 1 tên dạy 2 lớp cùng giờ)
+  const keep=new Set();let temp=0;
+  const ph=(name,alias,xid)=>{let t=S.teachers.find(t=>t.fromTkb&&t.name===name);if(!t){t={id:uid(),name,alias,subj:xid||"",off:[],fromTkb:true};S.teachers.push(t)}keep.add(t.id);return t};
+  for(const k in unknown){const L=unknown[k],nm=L[0].t;const slot={};let clash=false;L.forEach(c=>{if(slot[c.k]&&slot[c.k]!==c.cl.id)clash=true;slot[c.k]=c.cl.id});
+    if(!clash){const t=ph(nm,nm,"");L.forEach(c=>mark(t.id,c));continue}
+    const subs=[...new Set(L.filter(c=>!homeroomSub(c.x)).map(c=>c.x.id))],V={};
+    subs.forEach(xid=>V[xid]=ph(`${nm} (${subj(xid).short})`,nm,xid));if(!subs.length)V._=ph(nm,nm,"");
+    L.filter(c=>V[c.x.id]).forEach(c=>mark(V[c.x.id].id,c));L.filter(c=>!c.tid).forEach(c=>pending.push({c,L:Object.values(V)}))}
+  for(const{c,L}of pending){const teach=t=>cells.some(o=>o.tid===t.id&&o.cl===c.cl);
+    const pk=L.find(t=>!busy[t.id+"|"+c.k]&&teach(t))||L.find(t=>!busy[t.id+"|"+c.k])||L[0];mark(pk.id,c)}
+  S.teachers=S.teachers.filter(t=>!t.fromTkb||keep.has(t.id));temp=keep.size;
+  // ghi lại GV theo ô + suy ra phân công
+  S.tkbT={};S.assign={};const tcount={};
+  for(const c of cells){(S.tkbT[c.cl.id]=S.tkbT[c.cl.id]||{})[c.k]=c.tid||"";if(c.tid){const kk=c.cl.id+"|"+c.x.id+"|"+c.tid;tcount[kk]=(tcount[kk]||0)+1}}
+  for(const kk in tcount){const[cid,xid,t]=kk.split("|"),a=S.assign[cid]=S.assign[cid]||{};if(!a[xid]||tcount[cid+"|"+xid+"|"+a[xid]]<tcount[kk])a[xid]=t}
+  const shl=S.subjects.find(isSHL);
+  for(const cl of S.classes){const a=S.assign[cl.id]||{};const byList=S.teachers.find(t=>t.cn===cl.name&&!t.fromTkb);
+    if(byList)cl.gvcn=byList.id;else if(shl&&a[shl.id])cl.gvcn=a[shl.id];else if(cl.gvcn&&!tch(cl.gvcn))cl.gvcn="";
+    if(shl&&a[shl.id]&&a[shl.id]===cl.gvcn)a[shl.id]="__gvcn"}
+  for(const t of S.teachers)if(t.fromTkb){const m={};for(const kk in tcount){const[,xid,tt]=kk.split("|");if(tt===t.id&&!homeroomSub(subj(xid)))m[xid]=(m[xid]||0)+tcount[kk]}const b=Object.keys(m).sort((a,b)=>m[b]-m[a])[0];if(b)t.subj=b}
+  const linked=new Set(cells.filter(c=>c.tid&&!tch(c.tid).fromTkb).map(c=>c.tid)).size;
+  return{linked,temp};
+}
+
+/* ---------- Tải lên danh sách giáo viên / bảng phân công ---------- */
+const isBGH=t=>/hieu truong|pho hieu|^p\.?\s?ht$|^ht$|^pht$/.test(norm(t.role||""));
+function parseClassList(txt){ // "7A3,4;6A4,5" · "S9A1,2" · "K8,9" -> tên lớp
+  const out=new Set(),s=String(txt||"").replace(/\s+/g,"");
+  for(const m of s.matchAll(/([6-9])A((?:\d{1,2},?)+)/gi)){m[2].split(",").filter(Boolean).forEach(n=>out.add(m[1]+"A"+n))}
+  for(const m of s.matchAll(/K((?:[6-9],?)+)(?![A0-9])/gi)){m[1].split(",").filter(Boolean).forEach(g=>S.classes.filter(c=>String(c.grade)===g).forEach(c=>out.add(c.name)))}
+  return[...out]}
 function importTeachers(inp){
   const f=inp.files[0];inp.value="";if(!f)return;if(!window.XLSX){alert("Cần kết nối mạng để đọc file Excel.");return}
   const rd=new FileReader();rd.onload=()=>{try{
-    const wb=XLSX.read(rd.result,{type:"array"});let rows=null,H=-1,C=null;
-    for(const n of wb.SheetNames){const ws=wb.Sheets[n];if(!ws||!ws["!ref"])continue;const R=rowsOf(ws);
-      for(let i=0;i<Math.min(R.length,25);i++){const h=(R[i]||[]).map(v=>norm(String(v)));
+    const wb=XLSX.read(rd.result,{type:"array"});
+    // ưu tiên sheet "Tuần" mới nhất
+    const wk=n=>{const m=norm(n).match(/tuan\s*(\d+)/);return m?+m[1]:-1};
+    const names=[...wb.SheetNames].sort((a,b)=>wk(b)-wk(a));
+    let rows=null,H=-1,C=null,sheet="";
+    for(const n of names){const ws=wb.Sheets[n];if(!ws||!ws["!ref"])continue;const R=rowsOf(ws);
+      for(let i=0;i<Math.min(R.length,25);i++){
+        // tiêu đề có thể nằm trên nhiều dòng: ghép 4 dòng liền nhau theo cột
+        const width=Math.max(...R.slice(i,i+4).map(r=>(r||[]).length));const h=[];
+        for(let j=0;j<width;j++)h.push(norm(R.slice(i,i+4).map(r=>String((r||[])[j]||"")).join(" ")));
+        const first=(R[i]||[]).map(v=>norm(String(v)));
         const fi=re=>h.findIndex(v=>re.test(v));
-        const name=fi(/^(ho (va )?ten|ho ten|ho va ten giao vien|ho ten giao vien|ten giao vien|giao vien|ho va ten can bo.*|ho va ten cb.*)$/),ho=fi(/^(ho|ho dem|ho va dem|ho va ten dem|ho va chu lot|ho lot)$/),ten=fi(/^ten$/);
-        if(name>=0||(ho>=0&&ten>=0)){rows=R;H=i;C={name,ho,ten,alias:fi(/ten (tren|trong|goi|tat)|ten tkb|ten goi/),subj:fi(/^(mon|mon day|mon hoc|chuyen mon|bo mon|to|to chuyen mon|day mon|chuyen nganh|mon giang day)( .*)?$/),
-          site:fi(/diem truong|^diem|co so|dia diem|noi cong tac|phan hieu/),cap:fi(/^(cap|cap hoc|bac hoc|cap day)$/),role:fi(/chuc vu|chuc danh|nhiem vu/),sex:fi(/gioi tinh|^nu$|^phai$/)};break}}
+        const name=first.findIndex(v=>/^(ho (va )?ten|ho ten|ho va ten giao vien|ho ten giao vien|ten giao vien|ho va ten can bo.*)$/.test(v)),ho=first.findIndex(v=>/^(ho|ho dem|ho va dem|ho lot)$/.test(v)),ten=first.findIndex(v=>v==="ten");
+        if(name>=0||(ho>=0&&ten>=0)){
+          let hEnd=i+1;while(hEnd<R.length&&hEnd<i+5&&!/^\d+$/.test(String((R[hEnd]||[])[0]||"").trim()))hEnd++;
+          rows=R;H=hEnd-1;sheet=n;C={name,ho,ten,stt:first.findIndex(v=>v==="stt"||v==="tt"),
+            alias:fi(/ten (tren|trong|goi|tat)|ten tkb/),subj:fi(/mon day|^mon\b|mon hoc|bo mon|to chuyen mon|day mon|mon giang day/),
+            teach:fi(/giang day|lop day|day lop/),cn:fi(/kiem nhiem|chu nhiem|lop cn/),quota:fi(/so tiet quy dinh|dinh muc/),
+            site:fi(/diem truong|^diem\b|co so|dia diem|noi cong tac|phan hieu/),cap:fi(/^(cap|cap hoc|bac hoc|cap day)$/),role:fi(/chuc vu|chuc danh/),sex:fi(/gioi tinh|^nu$|^phai$/)};
+          if(C.cn===C.teach)C.cn=-1;break}}
       if(rows)break}
     if(!rows){alert("Không tìm thấy cột \"Họ và tên\" trong file. Thầy bấm \"File mẫu DS GV\" để xem cách điền.");return}
-    let add=0,upd=0,link=0;const g=(r,c)=>c>=0?String(r[c]||"").trim():"";
-    for(let i=H+1;i<rows.length;i++){const r=rows[i]||[];let name=C.name>=0?g(r,C.name):(g(r,C.ho)+" "+g(r,C.ten)).trim();name=name.replace(/\s+/g," ");
-      if(!name||/^\d+$/.test(name)||norm(name).startsWith("tong")||name.length<3)continue;
-      const capRaw=norm(g(r,C.cap)),siteRaw=g(r,C.site);
-      let cap=/tieu hoc|^th$|^th\b/.test(capRaw)?"TH":capRaw?"THCS":"";
+    let add=0,upd=0,skip=0;const g=(r,c)=>c>=0?String(r[c]||"").replace(/\s+/g," ").trim():"";const seenRow={};
+    for(let i=H+1;i<rows.length;i++){const r=rows[i]||[];
+      if(C.stt>=0&&!/^\d+$/.test(g(r,C.stt)))continue;
+      let name=C.name>=0?g(r,C.name):(g(r,C.ho)+" "+g(r,C.ten)).trim();
+      if(!name||/^\d+$/.test(name)||/^(tổng|cộng)(\s+(cộng|số))?\s*:?$/i.test(name)||name.length<3)continue;
+      const role=g(r,C.role);if(/^(nv|nhan vien)$/.test(norm(role))){skip++;continue}
+      const teachTxt=g(r,C.teach),cnTxt=g(r,C.cn),quota=parseInt(g(r,C.quota))||0,capRaw=norm(g(r,C.cap)),siteRaw=g(r,C.site);
+      const thcsCls=parseClassList(teachTxt+";"+cnTxt);
+      let cap=/tieu hoc|^th$/.test(capRaw)?"TH":capRaw?"THCS":"";
+      if(!cap){if(/(^|[^0-9])[6-9]a\d|k\s*[6-9]\b|thcs/.test(norm(teachTxt+" "+cnTxt)))cap="THCS";else if(/(^|[^0-9])[1-5]a\d|phan hieu|\bk[1-5]\b|tieu hoc/.test(norm(teachTxt+" "+cnTxt)))cap="TH";else if(quota>=23)cap="TH";else if(quota)cap="THCS"}
       let st="";if(siteRaw){const k=norm(siteRaw);let x=S.sites.find(s=>norm(s.name)===k)||S.sites.find(s=>norm(s.name).includes(k)||k.includes(norm(s.name)));
         if(!x){x={id:uid(),name:siteRaw,cap:cap||(/tieu hoc|\bth\b/.test(k)?"TH":"THCS")};S.sites.push(x)}st=x.id;if(!cap)cap=x.cap}
-      const alias=g(r,C.alias)||lastWord(name),xs=matchSubj(g(r,C.subj));
-      const info={name,alias,site:st,cap,subj:xs,role:g(r,C.role),sex:g(r,C.sex)};
-      let t=S.teachers.find(t=>norm(t.name)===norm(name));
-      if(!t){const L=S.teachers.filter(t=>t.fromTkb&&norm(t.alias||baseName(t.name))===norm(alias));t=(xs&&L.find(t=>t.subj===xs))||(L.length===1?L[0]:null);if(t)link++}
-      else upd++;
-      if(t){for(const k in info)if(info[k])t[k]=info[k];t.fromTkb=false}else{S.teachers.push({id:uid(),off:[],...info});add++}}
-    persist();renderAll();
-    const left=S.teachers.filter(t=>t.fromTkb).length;
-    toast(`Danh sách GV: thêm ${add}, cập nhật ${upd}, ghép ${link} tên gọi trong TKB với họ tên đầy đủ.${left?` Còn ${left} tên gọi chưa ghép được.`:""}`,6000);
+      const subjTxt=g(r,C.subj),subjs=matchSubjs(subjTxt+";"+(cap==="THCS"?teachTxt.replace(/[0-9A-Z,]+$/,""):""));
+      const cnM=norm(cnTxt).match(/(?:cn\s*)?([1-9])a(\d{1,2})/);
+      const info={name,alias:g(r,C.alias)||lastWord(name),site:st,cap,subj:subjs[0]||"",subjs,role,sex:g(r,C.sex),
+        cn:cnM?(cnM[1]+"A"+cnM[2]):"",teach:thcsCls,teachText:teachTxt,subjText:subjTxt};
+      // trùng họ tên: cùng người (dòng lặp) hay 2 người khác nhau?
+      const key=name.toLowerCase(),sig=norm(teachTxt+"|"+cnTxt);
+      if(seenRow[key]&&seenRow[key]!==sig){let n=2;while(S.teachers.some(t=>t.name.toLowerCase()===(name+" ("+n+")").toLowerCase()))n++;info.name=name+" ("+n+")"}
+      else if(seenRow[key]===sig)continue;
+      seenRow[key]=sig;
+      let t=S.teachers.find(t=>!t.fromTkb&&t.name.toLowerCase()===info.name.toLowerCase());
+      if(t){for(const k in info)if(info[k]&&(!Array.isArray(info[k])||info[k].length))t[k]=info[k];upd++}else{S.teachers.push({id:uid(),off:[],...info});add++}}
+    const R=relinkTkb();persist();renderAll();
+    const thcs=S.teachers.filter(t=>!t.fromTkb&&capOf(t)==="THCS").length,th=S.teachers.filter(t=>capOf(t)==="TH").length;
+    toast(`Sheet "${sheet}": thêm ${add}, cập nhật ${upd} GV (THCS ${thcs}, Tiểu học ${th}); bỏ qua ${skip} nhân viên.${S.tkb?` TKB: ghép được ${R.linked} GV${R.temp?`, còn ${R.temp} tên gọi chưa ghép`:""}.`:""}`,8000);
   }catch(e){console.error(e);alert("Không đọc được file: "+e.message)}};rd.readAsArrayBuffer(f)}
 function teacherTemplate(){
   if(!window.XLSX){toast("Cần kết nối mạng");return}
@@ -900,6 +955,7 @@ function teacherTemplate(){
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=[{wch:5},{wch:26},{wch:14},{wch:16},{wch:20},{wch:10},{wch:14},{wch:10}];
   XLSX.utils.book_append_sheet(wb,ws,"Danh sách GV");XLSX.writeFile(wb,"Mau_danh_sach_giao_vien.xlsx");
   toast("Cột bắt buộc: Họ và tên. Có cột Tên trên TKB thì ghép tên chính xác hơn (khi 2 GV trùng tên gọi).",6000)}
+
 function downloadTemplate(){
   if(!window.XLSX){toast("Cần kết nối mạng");return}
   const rows=[["Thứ","Buổi","Tiết","6A1","6A2","7A1"]],ex=[["CC","CC","CC"],["Toán - Nguyễn Văn An","Ngữ văn - Lê Thị Cúc","Tiếng Anh - Võ Thị Hà"],["Ngữ văn - Lê Thị Cúc","Toán - Nguyễn Văn An","Toán - Nguyễn Văn An"],["KHTN - Đỗ Văn Hùng","Tiếng Anh - Võ Thị Hà","Ngữ văn - Lê Thị Cúc"]];
