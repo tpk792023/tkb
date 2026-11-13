@@ -264,6 +264,12 @@ ul.iss{margin:6px 0 0;padding-left:20px;line-height:1.7;max-height:320px;overflo
       <button class="btn pri" onclick="quickTeachers()">＋ Thêm giáo viên</button>
     </div>
     <div class="row" style="margin-bottom:8px"><div><label class="f">Lọc</label><select class="t" id="tchFilter" onchange="renderCls()"></select></div><div><label class="f">Tìm tên</label><input class="t" id="tchFind" oninput="renderCls()" placeholder="Gõ tên…"></div><div class="note" id="tchCount" style="align-self:center"></div></div>
+    <div class="row" style="margin-bottom:10px;background:#f8f9ff;border:1px solid var(--line);border-radius:12px;padding:10px">
+      <div style="flex:2"><label class="f">Gán điểm trường hàng loạt: tick GV ở cột đầu (hoặc tick tất cả đang hiện), chọn điểm rồi bấm Gán</label><select class="t" id="bulkSite"></select></div>
+      <button class="btn" onclick="pickAllShown(true)">☑ Tick tất cả đang hiện</button>
+      <button class="btn" onclick="pickAllShown(false)">☐ Bỏ tick</button>
+      <button class="btn pri" onclick="bulkAssignSite()">Gán điểm cho GV đã tick</button>
+    </div>
     <div class="scroll"><table class="tbl" id="tchTbl"></table></div>
   </div>
 </section>
@@ -510,8 +516,14 @@ function renderSites(){
    <td style="width:160px"><select class="t" data-f="cap"><option value="THCS" ${x.cap==="THCS"?"selected":""}>THCS</option><option value="TH" ${x.cap==="TH"?"selected":""}>Tiểu học</option></select></td>
    <td class="c">${S.classes.filter(c=>c.site===x.id).length}</td><td class="c">${S.teachers.filter(t=>t.site===x.id).length}</td><td style="width:44px"><button class="icon" data-del="1">🗑</button></td></tr>`).join("")+"</tbody>";
   const qs=$("qSite"),v=qs.value;qs.innerHTML=siteOpts("","THCS",true);qs.value=v;
-  const tf=$("tchFilter"),fv=tf.value;tf.innerHTML=`<option value="">Tất cả giáo viên</option><option value="THCS">Cấp THCS</option><option value="TH">Cấp Tiểu học</option>`+S.sites.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");tf.value=fv;
+  const bs=$("bulkSite"),bv=bs.value;bs.innerHTML=siteOpts("","",true).replace('<option value="">—</option>','<option value="">— Bỏ điểm trường —</option>');bs.value=bv||(S.sites[0]||{}).id||"";
+  const tf=$("tchFilter"),fv=tf.value;tf.innerHTML=`<option value="">Tất cả giáo viên</option><option value="THCS">Cấp THCS</option><option value="TH">Cấp Tiểu học</option><option value="nosite">Chưa gán điểm trường</option>`+S.sites.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");tf.value=fv;
 }
+const tchPicked=new Set();
+function pickAllShown(v){document.querySelectorAll("#tchTbl tr[data-id]").forEach(tr=>{v?tchPicked.add(tr.dataset.id):tchPicked.delete(tr.dataset.id)});renderCls()}
+function bulkAssignSite(){const st=$("bulkSite").value;if(!tchPicked.size){toast("Chưa tick giáo viên nào");return}
+  let n=0;tchPicked.forEach(id=>{const t=tch(id);if(t){t.site=st;if(st)t.cap=site(st).cap;n++}});tchPicked.clear();persist();renderCls();
+  toast(`Đã gán ${n} GV vào "${st?site(st).name:"chưa chọn điểm"}"`)}
 function addSite(cap){const n=S.sites.filter(x=>x.cap===cap).length+1;S.sites.push({id:uid(),name:(cap==="TH"?"TH – Điểm ":"THCS – Điểm ")+n,cap});persist();renderCls()}
 function renderCls(){
   renderSites();
@@ -529,10 +541,10 @@ function renderCls(){
   S.classes.forEach(c=>$("clsTbl").querySelector(`tr[data-id="${c.id}"] select[data-f=ses]`).value=c.ses);
   const subjOpt=`<option value="">—</option>`+S.subjects.filter(x=>!isFlag(x)&&!isSHL(x)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
   const L=teacherLoads();
-  const fc=$("tchFilter").value,fq=norm($("tchFind").value);const TL=S.teachers.filter(t=>(!fc||(fc==="TH"?capOf(t)==="TH":fc==="THCS"?capOf(t)!=="TH":t.site===fc))&&(!fq||norm(t.name+" "+(t.alias||"")).includes(fq)));
+  const fc=$("tchFilter").value,fq=norm($("tchFind").value);const TL=S.teachers.filter(t=>(!fc||(fc==="TH"?capOf(t)==="TH":fc==="THCS"?capOf(t)!=="TH":fc==="nosite"?!t.site:t.site===fc))&&(!fq||norm(t.name+" "+(t.alias||"")).includes(fq)));
   $("tchCount").textContent=`Hiển thị ${TL.length}/${S.teachers.length} GV — THCS: ${S.teachers.filter(t=>capOf(t)!=="TH").length}, Tiểu học: ${S.teachers.filter(t=>capOf(t)==="TH").length}`;
-  $("tchTbl").innerHTML=TL.length?`<thead><tr><th>Họ tên</th><th>Tên trên TKB</th><th>Điểm trường</th><th>Môn chính</th><th>Ngày nghỉ / bận</th><th class="c">Tiết/tuần</th><th></th></tr></thead><tbody>`+
-   TL.map(t=>`<tr data-id="${t.id}"><td><input class="t" data-f="name" value="${esc(t.name)}"></td>
+  $("tchTbl").innerHTML=TL.length?`<thead><tr><th class="c">✔</th><th>Họ tên</th><th>Tên trên TKB</th><th>Điểm trường</th><th>Môn chính</th><th>Ngày nghỉ / bận</th><th class="c">Tiết/tuần</th><th></th></tr></thead><tbody>`+
+   TL.map(t=>`<tr data-id="${t.id}"><td class="c" style="width:36px"><input type="checkbox" data-pick="1" ${tchPicked.has(t.id)?"checked":""}></td><td><input class="t" data-f="name" value="${esc(t.name)}"></td>
    <td style="width:110px"><input class="t" data-f="alias" value="${esc(t.alias||"")}" placeholder="VD: Phượng"></td>
    <td style="width:170px"><select class="t" data-f="site">${siteOpts(t.site,"",true)}</select></td>
    <td style="width:220px"><select class="t" data-f="subj">${subjOpt.replace(`value="${t.subj}"`,`value="${t.subj}" selected`)}</select></td>
@@ -1117,6 +1129,7 @@ $("clsTbl").addEventListener("change",e=>{const tr=e.target.closest("tr[data-id]
 $("clsTbl").addEventListener("click",e=>{if(!e.target.dataset.del)return;const c=cls(e.target.closest("tr").dataset.id);if(!confirm(`Xóa lớp ${c.name}?`))return;
   S.classes=S.classes.filter(x=>x!==c);delete S.assign[c.id];if(S.tkb)delete S.tkb[c.id];persist();renderCls()});
 $("tchTbl").addEventListener("change",e=>{const tr=e.target.closest("tr[data-id]");if(!tr)return;const t=tch(tr.dataset.id);
+  if(e.target.dataset.pick){e.target.checked?tchPicked.add(t.id):tchPicked.delete(t.id);return}
   if(e.target.dataset.off){t.off=t.off||[];t.off[+e.target.dataset.off]=e.target.checked}else t[e.target.dataset.f]=e.target.value;persist();if(e.target.dataset.f!=="name")renderCls()});
 $("tchTbl").addEventListener("click",e=>{if(!e.target.dataset.del)return;const t=tch(e.target.closest("tr").dataset.id);if(!confirm(`Xóa giáo viên ${t.name}?`))return;
   S.teachers=S.teachers.filter(x=>x!==t);S.classes.forEach(c=>{if(c.gvcn===t.id)c.gvcn=""});for(const c in S.assign)for(const x in S.assign[c])if(S.assign[c][x]===t.id)S.assign[c][x]="";persist();renderCls()});
