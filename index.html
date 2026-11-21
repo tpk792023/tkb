@@ -125,6 +125,7 @@ ul.iss{margin:6px 0 0;padding-left:20px;line-height:1.7;max-height:320px;overflo
 .empty-state{text-align:center;padding:50px 10px;color:var(--muted)}
 .pa select{min-width:110px;font-size:13px}
 .ex select{min-width:170px;font-size:13px}
+#partTbl select[data-mode]{min-width:160px}
 .pa td:first-child{font-weight:700;white-space:nowrap}
 .note{font-size:13px;color:var(--muted)}
 #printAll{display:none}
@@ -228,7 +229,8 @@ ul.iss{margin:6px 0 0;padding-left:20px;line-height:1.7;max-height:320px;overflo
           <option value="dau-chieu">Tiết đầu buổi chiều</option>
         </select></div>
       <div><label class="f">Tiết đôi</label>
-        <label style="display:flex;gap:8px;align-items:center;font-size:14px;padding-top:8px"><input type="checkbox" id="optDouble"> Môn ≥ 4 tiết được học 2 tiết liền trong 1 ngày</label></div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:14px;padding-top:8px"><input type="checkbox" id="optDouble"> Môn để "Tự động" mà ≥ 4 tiết thì được học 2 tiết liền</label>
+        <div class="note" style="margin-top:4px">Muốn chọn riêng từng môn: cột <b>Cách xếp tiết</b> ở bảng môn học bên dưới.</div></div>
     </div>
   </div>
 
@@ -297,6 +299,12 @@ ul.iss{margin:6px 0 0;padding-left:20px;line-height:1.7;max-height:320px;overflo
   <div class="card">
     <div class="head"><div><h3>Bảng phân công giảng dạy</h3><p class="sub">Mỗi ô: giáo viên dạy môn đó ở lớp đó. "GVCN" = giáo viên chủ nhiệm của lớp. Ô để trống: máy vẫn xếp nhưng không kiểm tra trùng giờ.</p></div></div>
     <div class="scroll"><table class="tbl pa" id="pcTbl"></table></div>
+  </div>
+  <div class="card">
+    <div class="head"><div><h3>🔬 Phân môn KHTN &amp; Lịch sử – Địa lí</h3><p class="sub">Mỗi lớp chọn <b>Dạy full</b> (1 GV dạy cả môn, lấy theo bảng phân công ở trên) hoặc <b>Theo phân môn</b>: KHTN chia Lí – Hóa – Sinh, LS-ĐL chia Sử – Địa, mỗi phân môn 1 GV và số tiết riêng.</p></div></div>
+    <div id="partBtns" class="toolbar" style="margin-bottom:10px"></div>
+    <div class="scroll" style="margin-bottom:12px"><table class="tbl" id="partNTbl" style="max-width:760px"></table></div>
+    <div class="scroll"><table class="tbl pa" id="partTbl"></table></div>
   </div>
   <div class="card">
     <div class="head"><div><h3>Số tiết của từng giáo viên</h3><p class="sub">Tổng tiết/tuần theo phân công.</p></div></div>
@@ -760,9 +768,9 @@ function gridOf(kind,o){
     const part=[];
     for(let p=0;p<n;p++){
       const cells=days.map((_,d)=>{const k=d+"-"+s+"-"+p;
-        if(kind==="class"){if(!avail.has(k))return{off:1};const x=S.tkb&&S.tkb[o.id]&&subj(S.tkb[o.id][k]);if(!x)return null;const t=tAt(o,k,x);return{main:x.name,sub:t?tch(t).name:"",c:x.c}}
+        if(kind==="class"){if(!avail.has(k))return{off:1};const x=S.tkb&&S.tkb[o.id]&&subj(S.tkb[o.id][k]);if(!x)return null;const t=tAt(o,k,x);return{main:labelAt(o,k,x),sub:t?tch(t).name:"",c:x.c}}
         const a=TG[k];if(!a){return o.off&&o.off[d]?{off:1}:null}
-        return{main:a.map(z=>z.c.name).join(" + "),sub:a[0].x.name,c:a[0].x.c,bad:a.length>1}});
+        return{main:a.map(z=>z.c.name).join(" + "),sub:lbl(a[0]),c:a[0].x.c,bad:a.length>1}});
       part.push({s,lab,p,time:(S.times||{})[s+"-"+p]||"",cells})}
     // lớp chỉ học 1 buổi: bỏ buổi còn lại
     if(kind==="class"&&part.every(r=>r.cells.every(c=>c&&c.off)))continue;
@@ -821,7 +829,7 @@ function wordMaster(){
   for(let d=0;d<S.days;d++){let first=true;SR.forEach(([s,lab,n])=>{for(let p=0;p<n;p++){const top=first&&d?"border-top:2pt solid #"+BRAND+";":"";
     h+="<tr>"+(first?`<td rowspan="${per}" style="${B}background:#EEF0FF;font-weight:bold;text-align:center;font-size:10pt;${top}">${DAY_SHORT[d]}</td>`:"")+(p?"":`<td rowspan="${n}" style="${B}${top}background:#F7F8FD;text-align:center;font-size:9pt">${lab==="SÁNG"?"Sáng":"Chiều"}</td>`)+`<td style="${B}${top}text-align:center;font-size:9pt">${p+1}</td>`;first=false;
     for(const c of cs){const k=d+"-"+s+"-"+p,x=S.tkb[c.id]&&subj(S.tkb[c.id][k]);const t=x&&tAt(c,k,x);
-      h+=`<td style="${B}${top}text-align:center;font-size:8.5pt;${x?"background:#"+hex6(COLORS[x.c]):""}">${x?"<b>"+esc(x.short)+"</b>"+(t?"<br>"+esc(lastWord(tch(t).name)):""):""}</td>`}
+      h+=`<td style="${B}${top}text-align:center;font-size:8.5pt;${x?"background:#"+hex6(COLORS[x.c]):""}">${x?"<b>"+esc(labelAt(c,k,x,true))+"</b>"+(t?"<br>"+esc(lastWord(tch(t).name)):""):""}</td>`}
     h+="</tr>"}})}
   return h+"</table>"}
 
@@ -887,7 +895,7 @@ function excelMaster(wb){
         const st=(j,v,font,bg)=>{const c=ws.getCell(r,j);c.value=v;c.font={name:F,size:10,...font};if(bg)c.fill=fill(bg);c.alignment={horizontal:"center",vertical:"middle",wrapText:true};c.border={...XBOX,top}};
         st(1,DAY_SHORT[d],{bold:true},"EEF0FF");st(2,lab==="SÁNG"?"Sáng":"Chiều",{},"F7F8FD");st(3,p+1,{},"F7F8FD");
         cs.forEach((c,ci)=>{const k=d+"-"+s+"-"+p,x=S.tkb[c.id]&&subj(S.tkb[c.id][k]);const t=x&&tAt(c,k,x);
-          st(4+ci,x?{richText:[{text:x.short,font:{name:F,bold:true,size:10}},...(t?[{text:"\n"+lastWord(tch(t).name),font:{name:F,italic:true,size:9}}]:[])]}:"",{},x?hex6(COLORS[x.c]):null)});
+          st(4+ci,x?{richText:[{text:labelAt(c,k,x,true),font:{name:F,bold:true,size:10}},...(t?[{text:"\n"+lastWord(tch(t).name),font:{name:F,italic:true,size:9}}]:[])]}:"",{},x?hex6(COLORS[x.c]):null)});
         ws.getRow(r).height=28;r++}
       ws.mergeCells(s0,2,r-1,2)});
     ws.mergeCells(d0,1,r-1,1)}
@@ -954,7 +962,7 @@ function defaultSubjects(){return DEFAULT_SUBJECTS.map((d,i)=>({id:uid(),name:d[
 function defaultState(){return{school:"Trường TH & THCS Đa Phước",year:"2026–2027",from:"",days:6,am:4,pm:3,
   dayCfg:Array.from({length:6},()=>({S:true,C:true})),shlDay:"last",shlPos:"cuoi-sang",allowDouble:true,gov:"",place:"",signTitle:"HIỆU TRƯỞNG",signer:"",
   times:{"S-0":"7h00 - 7h45","S-1":"7h45 - 8h30","S-2":"8h50 - 9h35","S-3":"9h35 - 10h20","S-4":"10h20 - 11h05","C-0":"13h00 - 13h45","C-1":"13h45 - 14h30","C-2":"14h50 - 15h35","C-3":"15h35 - 16h20","C-4":"16h20 - 17h05"},
-  subjects:defaultSubjects(),classes:[],teachers:[],assign:{},tkb:null,tkbT:{},sites:defaultSites(),exam:null}}
+  subjects:defaultSubjects(),classes:[],teachers:[],assign:{},tkb:null,tkbT:{},tkbP:{},split:{},partN:{},sites:defaultSites(),exam:null}}
 function defaultSites(){return[["THCS – Điểm chính","THCS"],["THCS – Điểm 2","THCS"],["TH – Điểm 1","TH"],["TH – Điểm 2","TH"],["TH – Điểm 3","TH"],["TH – Điểm 4","TH"],["TH – Điểm 5","TH"]].map(([name,cap])=>({id:uid(),name,cap}))}
 const site=id=>S.sites.find(x=>x.id===id);
 const capOf=t=>(t&&site(t.site)||{}).cap||(t&&t.cap)||"THCS";
@@ -974,9 +982,22 @@ function allSlots(){const r=[];for(let d=0;d<S.days;d++)for(const s of["S","C"])
 function slotsOf(c){return allSlots().filter(s=>c.ses==="both"||s.s===c.ses)}
 function needOf(c){return subjsOf(c).reduce((a,x)=>a+nFor(x,c),0)}
 function tAt(c,k,x){const o=S.tkbT&&S.tkbT[c.id]&&S.tkbT[c.id][k];if(o!==undefined&&(o===""||tch(o)))return o;x=x||(S.tkb&&S.tkb[c.id]&&subj(S.tkb[c.id][k]));return x?tOf(c,x):""}
+/* ---- phân môn: KHTN (Lí, Hóa, Sinh), LS-ĐL (Sử, Địa) ---- */
+const PARTS={"KHTN":[["Li","Vật lí","Lí"],["Hoa","Hóa học","Hóa"],["Sinh","Sinh học","Sinh"]],"Sử-Địa":[["Su","Lịch sử","Sử"],["Dia","Địa lí","Địa"]]};
+const partsOf=x=>(x&&PARTS[x.short])||null;
+const partInfo=(x,key)=>(partsOf(x)||[]).find(p=>p[0]===key)||[key,key,key];
+function defaultPartN(x,g){const n=+x.n[g]||0,ps=partsOf(x)||[],o={};const base=Math.floor(n/(ps.length||1)),rem=n-base*ps.length;
+  ps.forEach((p,i)=>o[p[0]]=base+(x.short==="KHTN"?(i>=ps.length-rem?1:0):(i<rem?1:0)));return o}
+function partN(x,g,key){const P=S.partN&&S.partN[x.id]&&S.partN[x.id][g];if(P&&P[key]!=null&&P[key]!=="")return +P[key];return defaultPartN(x,g)[key]||0}
+const isSplit=(c,x)=>!!(partsOf(x)&&S.split&&S.split[c.id]&&S.split[c.id][x.id]);
+const splitParts=(c,x)=>(partsOf(x)||[]).map(p=>({key:p[0],n:partN(x,c.grade,p[0]),t:(S.split[c.id][x.id]||{})[p[0]]||""}));
+const partAt=(c,k)=>(S.tkbP&&S.tkbP[c.id]&&S.tkbP[c.id][k])||"";
+function labelAt(c,k,x,short){const p=partAt(c,k);if(p&&partsOf(x))return short?partInfo(x,p)[2]:partInfo(x,p)[1];return short?x.short:x.name}
+const lbl=o=>o.part&&partsOf(o.x)?partInfo(o.x,o.part)[1]:o.x.name;
+const modeOf=x=>x&&(x.mode==="rai"||x.mode==="doi")?x.mode:"auto";
 function teacherLoads(plan){const L={};
   if(!plan&&S.tkb&&S.tkbT&&Object.keys(S.tkbT).length){for(const c of S.classes){const g=S.tkb[c.id]||{};for(const k in g){const t=tAt(c,k);if(t)L[t]=(L[t]||0)+1}}return L}
-  for(const c of S.classes)for(const x of subjsOf(c)){const t=tOf(c,x);if(t)L[t]=(L[t]||0)+nFor(x,c)}return L}
+  for(const c of S.classes)for(const x of subjsOf(c)){if(isSplit(c,x)){for(const p of splitParts(c,x))if(p.t)L[p.t]=(L[p.t]||0)+p.n;continue}const t=tOf(c,x);if(t)L[t]=(L[t]||0)+nFor(x,c)}return L}
 
 /* ---------- 1. Thiết lập ---------- */
 function renderCfg(){
@@ -998,14 +1019,15 @@ function renderShl(){
   if(S.shlDay!=="last"&&+S.shlDay>=S.days)S.shlDay="last";$("iShlDay").value=S.shlDay;$("iShlPos").value=S.shlPos;
 }
 function renderSubjTbl(){
-  $("subjTbl").innerHTML=`<thead><tr><th>Môn học</th><th>Viết tắt</th>${GRADES.map(g=>`<th class="c">Khối ${g}</th>`).join("")}<th>Buổi ưu tiên</th><th></th></tr></thead><tbody>`+
+  $("subjTbl").innerHTML=`<thead><tr><th>Môn học</th><th>Viết tắt</th>${GRADES.map(g=>`<th class="c">Khối ${g}</th>`).join("")}<th>Buổi ưu tiên</th><th>Cách xếp tiết</th><th></th></tr></thead><tbody>`+
   S.subjects.map(x=>`<tr data-id="${x.id}"><td><span class="dot" style="background:${BORDERS[x.c]}"></span> <input class="t" style="width:calc(100% - 22px)" data-f="name" value="${esc(x.name)}"></td>
    <td style="width:100px"><input class="t" data-f="short" value="${esc(x.short)}"></td>
    ${GRADES.map(g=>`<td style="width:80px"><input class="t" type="number" min="0" max="12" data-g="${g}" value="${x.n[g]||0}"></td>`).join("")}
    <td style="width:140px"><select class="t" data-f="pref"><option value="any">Bất kỳ</option><option value="sang">Sáng</option><option value="chieu">Chiều</option></select></td>
+   <td style="width:170px">${isFlag(x)||isSHL(x)?'<span class="note">—</span>':`<select class="t" data-f="mode"><option value="auto" ${modeOf(x)==="auto"?"selected":""}>Tự động</option><option value="rai" ${x.mode==="rai"?"selected":""}>Rải đều (mỗi ngày 1 tiết)</option><option value="doi" ${x.mode==="doi"?"selected":""}>Tiết đôi (2 tiết liền)</option></select>`}</td>
    <td style="width:44px"><button class="icon" data-del="1">🗑</button></td></tr>`).join("")+
-  `<tr><td><b>Tổng tiết/tuần</b></td><td></td>${GRADES.map(g=>`<td class="c"><b>${S.subjects.reduce((a,x)=>a+(+x.n[g]||0),0)}</b></td>`).join("")}<td colspan="2"></td></tr></tbody>`;
-  S.subjects.forEach(x=>$("subjTbl").querySelector(`tr[data-id="${x.id}"] select`).value=x.pref);
+  `<tr><td><b>Tổng tiết/tuần</b></td><td></td>${GRADES.map(g=>`<td class="c"><b>${S.subjects.reduce((a,x)=>a+(+x.n[g]||0),0)}</b></td>`).join("")}<td colspan="3"></td></tr></tbody>`;
+  S.subjects.forEach(x=>$("subjTbl").querySelector(`tr[data-id="${x.id}"] select[data-f=pref]`).value=x.pref);
 }
 function addSubject(){const n=$("newSubj").value.trim();if(!n)return;const used=new Set(S.subjects.map(s=>s.c));let c=0;while(used.has(c)&&c<15)c++;
   S.subjects.push({id:uid(),name:n,short:n.split(" ")[0],pref:"any",c,n:{6:1,7:1,8:1,9:1}});$("newSubj").value="";renderSubjTbl();persist()}
@@ -1083,9 +1105,28 @@ function renderPc(){
   $("gCls").innerHTML=GRADES.map(g=>{const cs=S.classes.filter(c=>c.grade==g);return cs.length?`<span class="chip n">Khối ${g}: ${cs.map(c=>`<label style="margin-right:8px"><input type="checkbox" value="${c.id}"> ${esc(c.name)}</label>`).join("")} <a href="#" data-g="${g}">cả khối</a></span>`:""}).join("");
   const L=teacherLoads();
   $("loadChips").innerHTML=S.teachers.length?S.teachers.map(t=>`<span class="chip ${(L[t.id]||0)>slotsAvail(t)?"bad":"n"}">${esc(t.name)}: ${L[t.id]||0} tiết</span>`).join(""):`<span class="note">Chưa có giáo viên.</span>`;
-  let miss=0;for(const c of S.classes)for(const x of subjsOf(c))if(!isFlag(x)&&!tOf(c,x))miss++;
+  let miss=0;for(const c of S.classes)for(const x of subjsOf(c)){if(isFlag(x))continue;if(isSplit(c,x)){miss+=splitParts(c,x).filter(p=>p.n>0&&!p.t).length;continue}if(!tOf(c,x))miss++}
   $("bPc").textContent=miss?`thiếu ${miss}`:"đủ";
+  renderParts();
 }
+function renderParts(){
+  const SP=S.subjects.filter(x=>partsOf(x)&&GRADES.some(g=>(+x.n[g]||0)>0));
+  if(!SP.length||!S.classes.length){$("partNTbl").innerHTML="";$("partTbl").innerHTML=`<tr><td class="note">Chưa có lớp hoặc chưa có môn KHTN / LS-ĐL.</td></tr>`;$("partBtns").innerHTML="";return}
+  $("partBtns").innerHTML=SP.map(x=>`<span class="note"><b>${esc(x.short)}:</b></span><button class="btn" data-all="${x.id}|full">Cả trường dạy full</button><button class="btn" data-all="${x.id}|part">Cả trường theo phân môn</button>`).join('<span style="width:14px"></span>');
+  // số tiết từng phân môn theo khối
+  let h=`<thead><tr><th>Số tiết phân môn</th>${GRADES.map(g=>`<th class="c">Khối ${g}</th>`).join("")}</tr></thead><tbody>`;
+  for(const x of SP){for(const p of partsOf(x))h+=`<tr><td>${esc(x.short)} – ${p[1]}</td>${GRADES.map(g=>`<td style="width:90px"><input class="t" type="number" min="0" max="8" data-pn="${x.id}|${g}|${p[0]}" value="${partN(x,g,p[0])}"></td>`).join("")}</tr>`;
+    h+=`<tr style="background:#f8f9ff"><td><b>Cộng ${esc(x.short)}</b></td>${GRADES.map(g=>{const sum=partsOf(x).reduce((a,p)=>a+partN(x,g,p[0]),0),need=+x.n[g]||0;return`<td class="c"><span class="tag ${sum===need?"ok":"bad"}">${sum} / ${need}</span></td>`}).join("")}</tr>`}
+  $("partNTbl").innerHTML=h+"</tbody>";
+  // từng lớp
+  $("partTbl").innerHTML=`<thead><tr><th>Lớp</th>${SP.map(x=>`<th>${esc(x.short)}: cách dạy</th>${partsOf(x).map(p=>`<th>${p[2]} (GV)</th>`).join("")}`).join("")}</tr></thead><tbody>`+
+    S.classes.map(c=>`<tr data-c="${c.id}"><td>${esc(c.name)}</td>${SP.map(x=>{if(!nFor(x,c))return`<td class="note c" colspan="${1+partsOf(x).length}">—</td>`;const sp=isSplit(c,x);
+      return`<td><select class="t" data-mode="${x.id}"><option value="full">Dạy full (1 GV)</option><option value="part" ${sp?"selected":""}>Theo phân môn</option></select></td>`+
+      partsOf(x).map(p=>sp?`<td><select class="t" data-part="${x.id}|${p[0]}">${teacherOptions((S.split[c.id][x.id]||{})[p[0]]||"",x.id,false)}</select><div class="note" style="font-size:11.5px">${partN(x,c.grade,p[0])} tiết</div></td>`:`<td class="note c">—</td>`).join("")}).join("")}</tr>`).join("")+"</tbody>";
+}
+function setSplit(cid,xid,on){const c=cls(cid),x=subj(xid);S.split=S.split||{};
+  if(on){const t=tOf(c,x);const o={};partsOf(x).forEach(p=>o[p[0]]=t||"");(S.split[cid]=S.split[cid]||{})[xid]=(S.split[cid]||{})[xid]||o}
+  else if(S.split[cid])delete S.split[cid][xid]}
 function slotsAvail(t){const days=new Set(allSlots().filter(s=>!(t.off&&t.off[s.d])).map(s=>s.k));return days.size}
 function renderGTch(){$("gTch").innerHTML=teacherOptions("",$("gSubj").value,true)}
 function quickAssign(){const x=$("gSubj").value,t=$("gTch").value,ids=[...$("gCls").querySelectorAll("input:checked")].map(i=>i.value);
@@ -1114,8 +1155,9 @@ function solveOnce(ctx){
   const grid={},tb={},cnt={},load={},tload={},pins={},tsite={};let unplaced=[];
   const tsAdd=(t,s,cid,v)=>{if(!t||!ctx.multi)return;const m=tsite[t+"|"+s.d+s.s]=tsite[t+"|"+s.d+s.s]||{};const st=ctx.siteOf[cid];m[st]=(m[st]||0)+v};
   for(const o of ctx.classes)grid[o.c.id]={};
-  const put=(cid,u,s)=>{grid[cid][s.k]=u;if(u.t)tb[u.t+"|"+s.k]=cid;const a=cid+"|"+u.x.id+"|"+s.d;cnt[a]=(cnt[a]||0)+1;load[cid+"|"+s.d]=(load[cid+"|"+s.d]||0)+1;if(u.t)tload[u.t+"|"+s.d]=(tload[u.t+"|"+s.d]||0)+1;tsAdd(u.t,s,cid,1)};
-  const del=(cid,s)=>{const u=grid[cid][s.k];delete grid[cid][s.k];if(u.t)delete tb[u.t+"|"+s.k];cnt[cid+"|"+u.x.id+"|"+s.d]--;load[cid+"|"+s.d]--;if(u.t)tload[u.t+"|"+s.d]--;tsAdd(u.t,s,cid,-1);return u};
+  const ck=(cid,u,d)=>cid+"|"+u.x.id+"|"+(u.part||"")+"|"+d;
+  const put=(cid,u,s)=>{grid[cid][s.k]=u;if(u.t)tb[u.t+"|"+s.k]=cid;const a=ck(cid,u,s.d);cnt[a]=(cnt[a]||0)+1;load[cid+"|"+s.d]=(load[cid+"|"+s.d]||0)+1;if(u.t)tload[u.t+"|"+s.d]=(tload[u.t+"|"+s.d]||0)+1;tsAdd(u.t,s,cid,1)};
+  const del=(cid,s)=>{const u=grid[cid][s.k];delete grid[cid][s.k];if(u.t)delete tb[u.t+"|"+s.k];cnt[ck(cid,u,s.d)]--;load[cid+"|"+s.d]--;if(u.t)tload[u.t+"|"+s.d]--;tsAdd(u.t,s,cid,-1);return u};
   const tFree=(t,s)=>!t||(!tb[t+"|"+s.k]&&!ctx.offOf[t][s.d]);
   const units=[];
   for(const o of ctx.classes){
@@ -1123,26 +1165,38 @@ function solveOnce(ctx){
     for(const x of o.subs){
       let n=nFor(x,c);const t=tOf(c,x);
       if(isFlag(x)){const s=o.sl.find(s=>s.d===0&&s.s==="S")||o.sl.find(s=>s.d===o.sl[0].d)||o.sl[0];if(s){put(c.id,{x,t:"",pin:1},s);taken[s.k]=1;pins[c.id+s.k]=1;n--}}
-      for(let i=0;i<n;i++)units.push({cid:c.id,o,x,t});
+      const mk=(cnt0,tt,part)=>{const pn=part?cnt0:nFor(x,c);let k=cnt0;const base={cid:c.id,o,x,t:tt,part,pn};
+        if(modeOf(x)==="doi")while(k>=2){units.push({...base,len:2});k-=2}
+        for(let i=0;i<k;i++)units.push({...base,len:1})};
+      if(isSplit(c,x)&&!isSHL(x)&&!isFlag(x)){for(const p of splitParts(c,x))if(p.n>0)mk(p.n,p.t,p.key)}else mk(n,t,"");
     }
     const shl=o.subs.find(isSHL);
     if(shl){const s=shlSlotFor(c,o.sl,taken);if(s){const t=tOf(c,shl);put(c.id,{x:shl,t,pin:1},s);pins[c.id+s.k]=1;const i=units.findIndex(u=>u.cid===c.id&&u.x===shl);if(i>=0)units.splice(i,1)}}
   }
-  units.forEach(u=>u.key=(u.t?ctx.L[u.t]||0:0)+nFor(u.x,u.o.c)*2+(u.x.pref!=="any"?3:0)+Math.random()*6);
+  units.forEach(u=>u.key=(u.t?ctx.L[u.t]||0:0)+nFor(u.x,u.o.c)*2+(u.x.pref!=="any"?3:0)+(u.len===2?25:0)+Math.random()*6);
   units.sort((a,b)=>b.key-a.key);
   const cost=(u,s)=>{
-    const cid=u.cid,x=u.x,k=cnt[cid+"|"+x.id+"|"+s.d]||0,nd=ctx.ndays[cid],n=nFor(x,u.o.c);let c=0;
-    if(k>=2)c+=1000;else if(k===1){const g=grid[cid],adj=[s.p-1,s.p+1].some(p=>{const v=g[s.d+"-"+s.s+"-"+p];return v&&v.x===x});
-      c+=adj?((S.allowDouble&&n>=4)?8:(n>nd?15:60)):(n>nd?40:120)}
+    const cid=u.cid,x=u.x,k=cnt[ck(cid,u,s.d)]||0,nd=ctx.ndays[cid],n=u.pn||nFor(x,u.o.c),m=modeOf(x);let c=0;
+    if(u.len===2){if(k>=1)c+=(n>2*nd?60:600)}
+    else if(k>=2)c+=1000;else if(k===1){const g=grid[cid],adj=[s.p-1,s.p+1].some(p=>{const v=g[s.d+"-"+s.s+"-"+p];return v&&v.x===x&&(v.part||"")===(u.part||"")});
+      if(m==="rai")c+=n>nd?40:400;else if(m==="doi")c+=adj?0:160;
+      else c+=adj?((S.allowDouble&&n>=4)?8:(n>nd?15:60)):(n>nd?40:120)}
+    if(u.part){const tot=Object.keys(cnt).filter(a=>a.startsWith(cid+"|"+x.id+"|")&&a.endsWith("|"+s.d)).reduce((a,b)=>a+cnt[b],0);if(tot>=2)c+=40*(tot-1)}
     if(x.pref==="sang"&&s.s==="C"&&u.o.c.ses==="both")c+=35;
     if(x.pref==="chieu"&&s.s==="S"&&u.o.c.ses==="both")c+=35;
     c+=(s.s==="C"&&u.o.c.ses==="both"?5:0)+s.p*1.2+(load[cid+"|"+s.d]||0)*1.2+(u.t?(tload[u.t+"|"+s.d]||0)*0.8:0)+Math.random()*3;
     if(u.t&&ctx.multi){const m=tsite[u.t+"|"+s.d+s.s];if(m)for(const st in m)if(m[st]>0&&st!==ctx.siteOf[cid])c+=45}
     return c};
-  for(const u of units){
-    let best=null,bc=1e9;
+  const nextOf=(o,s)=>o.sl.find(z=>z.d===s.d&&z.s===s.s&&z.p===s.p+1);
+  const placeOne=u=>{let best=null,bc=1e9;
     for(const s of u.o.sl){if(grid[u.cid][s.k]||!tFree(u.t,s))continue;const c=cost(u,s);if(c<bc){bc=c;best=s}}
-    if(best)put(u.cid,u,best);else unplaced.push(u);
+    if(best)put(u.cid,u,best);else unplaced.push(u)};
+  for(const u of units){
+    if(u.len!==2){placeOne(u);continue}
+    let best=null,bc=1e9;
+    for(const s of u.o.sl){const s2=nextOf(u.o,s);if(!s2||grid[u.cid][s.k]||grid[u.cid][s2.k]||!tFree(u.t,s)||!tFree(u.t,s2))continue;const c=cost(u,s);if(c<bc){bc=c;best=[s,s2]}}
+    if(best){put(u.cid,u,best[0]);put(u.cid,u,best[1])}
+    else{const a={...u,len:1},b={...u,len:1};placeOne(a);placeOne(b)}
   }
   // sửa chữa: đẩy tiết khác đi để chèn tiết chưa xếp
   for(let pass=0;pass<3&&unplaced.length;pass++){
@@ -1151,10 +1205,10 @@ function solveOnce(ctx){
       let done=false;const sl=u.o.sl,g=grid[u.cid];
       // A: ô lớp còn trống nhưng GV đang dạy lớp khác -> dời tiết đó của GV
       for(const s of sl){if(done)break;if(g[s.k]||(u.t&&ctx.offOf[u.t][s.d]))continue;
-        const c2=u.t&&tb[u.t+"|"+s.k];if(!c2||pins[c2+s.k])continue;const o2=ctx.classes.find(o=>o.c.id===c2);
+        const c2=u.t&&tb[u.t+"|"+s.k];if(!c2||pins[c2+s.k]||grid[c2][s.k].len===2)continue;const o2=ctx.classes.find(o=>o.c.id===c2);
         for(const f of o2.sl){if(grid[c2][f.k]||!tFree(u.t,f))continue;const v=del(c2,s);put(c2,v,f);put(u.cid,u,s);done=true;break}}
       // B: đổi chỗ với một tiết khác trong lớp
-      for(const s of sl){if(done)break;const z=g[s.k];if(!z||z.pin||!(u.t?!tb[u.t+"|"+s.k]||tb[u.t+"|"+s.k]===u.cid:true)||(u.t&&ctx.offOf[u.t][s.d]))continue;
+      for(const s of sl){if(done)break;const z=g[s.k];if(!z||z.pin||z.len===2||!(u.t?!tb[u.t+"|"+s.k]||tb[u.t+"|"+s.k]===u.cid:true)||(u.t&&ctx.offOf[u.t][s.d]))continue;
         if(u.t&&tb[u.t+"|"+s.k])continue;
         for(const f of sl){if(g[f.k]||!tFree(z.t,f))continue;del(u.cid,s);put(u.cid,z,f);put(u.cid,u,s);done=true;break}}
       if(!done)still.push(u);
@@ -1164,22 +1218,29 @@ function solveOnce(ctx){
   // dồn ô trống lên trước nếu GV rảnh
   for(const o of ctx.classes){const g=grid[o.c.id];const by={};o.sl.forEach(s=>(by[s.d+s.s]=by[s.d+s.s]||[]).push(s));
     for(const arr of Object.values(by))for(let i=0;i<arr.length;i++){if(g[arr[i].k])continue;
-      for(let j=i+1;j<arr.length;j++){const w=g[arr[j].k];if(!w||w.pin||!tFree(w.t,arr[i]))continue;del(o.c.id,arr[j]);put(o.c.id,w,arr[i]);break}}}
-  const out={};for(const cid in grid){out[cid]={};for(const k in grid[cid])out[cid][k]=grid[cid][k].x.id}
-  return{tkb:out,unplaced:unplaced.length,score:unplaced.length*10000+evaluateAll(out).penalty};
+      for(let j=i+1;j<arr.length;j++){const w=g[arr[j].k];if(!w||w.pin||w.len===2||!tFree(w.t,arr[i]))continue;del(o.c.id,arr[j]);put(o.c.id,w,arr[i]);break}}}
+  const out={},outT={},outP={};for(const cid in grid){out[cid]={};outT[cid]={};for(const k in grid[cid]){const u=grid[cid][k];out[cid][k]=u.x.id;outT[cid][k]=u.t||"";if(u.part)(outP[cid]=outP[cid]||{})[k]=u.part}}
+  return{tkb:out,tkbT:outT,tkbP:outP,unplaced:unplaced.length,score:unplaced.length*10000+evaluateAll(out,outT,outP).penalty};
 }
-function evaluateAll(tkb){
+function evaluateAll(tkb,T,P){
   tkb=tkb||S.tkb||{};const issues=[],bad=new Set();let penalty=0;const tmap={};
+  const tf=(c,k,x)=>T?((T[c.id]&&T[c.id][k]!==undefined)?T[c.id][k]:tOf(c,x)):(tkb===S.tkb?tAt(c,k,x):tOf(c,x));
+  const pf=(c,k)=>P?((P[c.id]||{})[k]||""):(tkb===S.tkb?partAt(c,k):"");
   for(const c of S.classes){
     const g=tkb[c.id]||{},sl=slotsOf(c),nd=new Set(sl.map(s=>s.d)).size||1;
-    for(const s of sl){const x=g[s.k]&&subj(g[s.k]);if(!x)continue;const t=tkb===S.tkb?tAt(c,s.k,x):tOf(c,x);if(t){(tmap[t+"|"+s.k]=tmap[t+"|"+s.k]||[]).push(c);
+    for(const s of sl){const x=g[s.k]&&subj(g[s.k]);if(!x)continue;const t=tf(c,s.k,x);if(t){(tmap[t+"|"+s.k]=tmap[t+"|"+s.k]||[]).push(c);
       if(tch(t).off&&tch(t).off[s.d]){penalty+=300;issues.push({t:"bad",m:`${c.name}: ${tch(t).name} nghỉ ${DAY_NAMES[s.d].toLowerCase()} nhưng có tiết ${x.name}`});bad.add(c.id+"|"+s.k)}}}
-    for(const x of subjsOf(c)){const n=nFor(x,c);
-      for(let d=0;d<S.days;d++){const ks=sl.filter(s=>s.d===d&&g[s.k]===x.id);
-        if(ks.length>2){penalty+=500;issues.push({t:"warn",m:`${c.name} – ${x.name}: ${ks.length} tiết trong ${DAY_NAMES[d].toLowerCase()}`});ks.forEach(s=>bad.add(c.id+"|"+s.k))}
+    const grp={};for(const s of sl){const id=g[s.k];if(!id)continue;const key=id+"|"+pf(c,s.k);(grp[key]=grp[key]||[]).push(s)}
+    for(const key in grp){const[id,pk]=key.split("|");const x=subj(id);if(!x||isFlag(x))continue;
+      const n=pk&&partsOf(x)?partN(x,c.grade,pk):nFor(x,c),m=modeOf(x),nm=pk&&partsOf(x)?partInfo(x,pk)[1]:x.name;let singles=0;
+      for(let d=0;d<S.days;d++){const ks=grp[key].filter(s=>s.d===d);if(ks.length===1)singles++;
+        if(ks.length>2){penalty+=500;issues.push({t:"warn",m:`${c.name} – ${nm}: ${ks.length} tiết trong ${DAY_NAMES[d].toLowerCase()}`});ks.forEach(s=>bad.add(c.id+"|"+s.k))}
         else if(ks.length===2){const adj=ks[0].s===ks[1].s&&Math.abs(ks[0].p-ks[1].p)===1;
-          if(!adj){penalty+=n>nd?20:80;if(n<=nd){issues.push({t:"warn",m:`${c.name} – ${x.name}: 2 tiết rời nhau ${DAY_NAMES[d].toLowerCase()}`});ks.forEach(s=>bad.add(c.id+"|"+s.k))}}
-          else if(!(S.allowDouble&&n>=4)&&n<=nd)penalty+=40}}
+          if(m==="rai"&&n<=nd){penalty+=150;issues.push({t:"warn",m:`${c.name} – ${nm}: 2 tiết trong ${DAY_NAMES[d].toLowerCase()} (môn đã chọn rải đều)`})}
+          else if(!adj){penalty+=n>nd?20:80;if(n<=nd){issues.push({t:"warn",m:`${c.name} – ${nm}: 2 tiết rời nhau ${DAY_NAMES[d].toLowerCase()}`});ks.forEach(s=>bad.add(c.id+"|"+s.k))}}
+          else if(m==="auto"&&!(S.allowDouble&&n>=4)&&n<=nd)penalty+=40}}
+      if(m==="doi"&&singles>n%2){penalty+=60*(singles-n%2);issues.push({t:"warn",m:`${c.name} – ${nm}: chưa xếp đủ tiết đôi (${singles} ngày chỉ có 1 tiết)`})}}
+    for(const x of subjsOf(c)){
       if(x.pref!=="any"&&!isFlag(x)&&!isSHL(x)&&c.ses==="both"){const w=sl.filter(s=>g[s.k]===x.id&&s.s!==(x.pref==="sang"?"S":"C")).length;if(w)penalty+=w*25}
     }
   }
@@ -1210,27 +1271,27 @@ async function runSolve(){
     if(best.score<1&&i>40)break;
     await new Promise(r=>setTimeout(r,0));
   }
-  if(S.tkb)pushHistory();S.tkb=best.tkb;S.tkbT={};persist();solving=false;$("overlay").classList.add("hide");
+  if(S.tkb)pushHistory();S.tkb=best.tkb;S.tkbT=best.tkbT;S.tkbP=best.tkbP;persist();solving=false;$("overlay").classList.add("hide");
   if(!pick||!cls(pick))pick=S.classes[0].id;view=view||"class";showTab("tkb");
   const ev=evaluateAll();
   toast(best.unplaced?`⚠️ Còn ${best.unplaced} tiết chưa xếp được — xem tab Đối soát`:ev.conflicts?`⚠️ Có ${ev.conflicts} chỗ trùng giờ GV`:`✔ Đã xếp xong ${S.classes.length} lớp, không trùng giờ giáo viên`,4000);
 }
 
 /* ---------- 4. Xem TKB ---------- */
-function pushHistory(){history.push(JSON.stringify({tkb:S.tkb,tkbT:S.tkbT||{}}));if(history.length>30)history.shift();$("bUndo").disabled=false}
-function undo(){if(!history.length)return;{const h=JSON.parse(history.pop());if(h&&h.tkb!==undefined&&h.tkbT){S.tkb=h.tkb;S.tkbT=h.tkbT}else S.tkb=h}persist();renderAll();$("bUndo").disabled=!history.length;toast("Đã hoàn tác")}
-function clearTkb(){if(!S.tkb||!confirm("Xóa thời khóa biểu của toàn trường?"))return;pushHistory();S.tkb=null;S.tkbT={};editMode=false;persist();renderAll()}
+function pushHistory(){history.push(JSON.stringify({tkb:S.tkb,tkbT:S.tkbT||{},tkbP:S.tkbP||{}}));if(history.length>30)history.shift();$("bUndo").disabled=false}
+function undo(){if(!history.length)return;{const h=JSON.parse(history.pop());if(h&&h.tkb!==undefined&&h.tkbT){S.tkb=h.tkb;S.tkbT=h.tkbT;S.tkbP=h.tkbP||{}}else S.tkb=h}persist();renderAll();$("bUndo").disabled=!history.length;toast("Đã hoàn tác")}
+function clearTkb(){if(!S.tkb||!confirm("Xóa thời khóa biểu của toàn trường?"))return;pushHistory();S.tkb=null;S.tkbT={};S.tkbP={};editMode=false;persist();renderAll()}
 function toggleEdit(){if(!S.tkb){toast("Hãy xếp TKB trước");return}if(view!=="class"){toast("Chuyển sang 'Theo lớp' để sửa");return}editMode=!editMode;selKey=null;$("bEdit").classList.toggle("on",editMode);renderTkb()}
 function teacherAt(c,k){return tAt(c,k)}
 function conflictMsg(c,k){const t=teacherAt(c,k);if(!t)return"";const o=S.classes.find(c2=>c2!==c&&teacherAt(c2,k)===t);return o?`${tch(t).name} đang dạy lớp ${o.name} giờ này`:""}
 function clickSlot(k){
   if(!editMode)return;const c=cls(pick),g=S.tkb[c.id]=S.tkb[c.id]||{};
   if(selKey===null)selKey=k;else if(selKey===k)selKey=null;
-  else{pushHistory();const T=S.tkbT=S.tkbT||{},gt=T[c.id]=T[c.id]||{};const ta=tAt(c,selKey),tb2=tAt(c,k);const a=g[selKey],b=g[k];if(b)g[selKey]=b;else delete g[selKey];if(a)g[k]=a;else delete g[k];gt[selKey]=b?tb2:"";gt[k]=a?ta:"";
+  else{pushHistory();const T=S.tkbT=S.tkbT||{},gt=T[c.id]=T[c.id]||{};const ta=tAt(c,selKey),tb2=tAt(c,k);const a=g[selKey],b=g[k];if(b)g[selKey]=b;else delete g[selKey];if(a)g[k]=a;else delete g[k];gt[selKey]=b?tb2:"";gt[k]=a?ta:"";const PP=S.tkbP=S.tkbP||{},gp=PP[c.id]=PP[c.id]||{};const pa=gp[selKey],pb=gp[k];if(pb)gp[selKey]=pb;else delete gp[selKey];if(pa)gp[k]=pa;else delete gp[k];
     const m=[conflictMsg(c,selKey),conflictMsg(c,k)].filter(Boolean);selKey=null;persist();renderAll();if(m.length)toast("⚠️ "+m.join("; "),4000);return}
   renderTkb()}
 function assignSelected(){if(!selKey){toast("Bấm chọn một ô trước");return}const c=cls(pick),g=S.tkb[c.id]=S.tkb[c.id]||{};pushHistory();
-  const v=$("assignSel").value;if(v)g[selKey]=v;else delete g[selKey];if(S.tkbT&&S.tkbT[c.id])delete S.tkbT[c.id][selKey];const m=conflictMsg(c,selKey);selKey=null;persist();renderAll();if(m)toast("⚠️ "+m,4000)}
+  const v=$("assignSel").value;if(v)g[selKey]=v;else delete g[selKey];if(S.tkbT&&S.tkbT[c.id])delete S.tkbT[c.id][selKey];if(S.tkbP&&S.tkbP[c.id])delete S.tkbP[c.id][selKey];const m=conflictMsg(c,selKey);selKey=null;persist();renderAll();if(m)toast("⚠️ "+m,4000)}
 
 function title(sub){return`<div class="tt"><div class="s1">${esc(S.school)}</div><div class="s2">${sub}</div><div class="s3">Năm học: ${esc(S.year)}${S.from?" • Áp dụng từ: "+esc(S.from):""}</div></div>`}
 function sessRows(){return[["S","SÁNG",S.am],["C","CHIỀU",S.pm]].filter(x=>x[2]>0)}
@@ -1241,11 +1302,11 @@ function classSheet(c,plain,ev){
   sessRows().forEach(([s,lab,n],si)=>{for(let p=0;p<n;p++){h+=`<tr class="${si&&!p?"sep":""}">`+(p?"":`<td class="bu" rowspan="${n}">${lab}</td>`)+`<td class="ti">Tiết ${p+1}</td>`;
     for(let d=0;d<S.days;d++){const k=d+"-"+s+"-"+p;if(!sl.has(k)){h+=`<td class="slot"><div class="cell off">Nghỉ</div></td>`;continue}
       const x=g[k]&&subj(g[k]),t=x&&tAt(c,k,x);const cl=["slot",selKey===k&&!plain?"sel":"",!plain&&ev&&ev.bad.has(c.id+"|"+k)?"bad":""].join(" ");
-      h+=`<td class="${cl}" data-k="${k}">`+(x?`<div class="cell" style="background:${COLORS[x.c]};border-left-color:${BORDERS[x.c]}">${esc(x.name)}${t?`<small>${esc(tch(t).name)}</small>`:""}</div>`:`<div class="cell empty"></div>`)+"</td>"}
+      h+=`<td class="${cl}" data-k="${k}">`+(x?`<div class="cell" style="background:${COLORS[x.c]};border-left-color:${BORDERS[x.c]}">${esc(labelAt(c,k,x))}${t?`<small>${esc(tch(t).name)}</small>`:""}</div>`:`<div class="cell empty"></div>`)+"</td>"}
     h+="</tr>"}});
   return h+"</tbody></table>";
 }
-function teacherGrid(t){const r={};for(const c of S.classes){const g=(S.tkb&&S.tkb[c.id])||{};for(const k in g){const x=subj(g[k]);if(x&&tAt(c,k,x)===t.id)(r[k]=r[k]||[]).push({c,x})}}return r}
+function teacherGrid(t){const r={};for(const c of S.classes){const g=(S.tkb&&S.tkb[c.id])||{};for(const k in g){const x=subj(g[k]);if(x&&tAt(c,k,x)===t.id)(r[k]=r[k]||[]).push({c,x,part:partAt(c,k)})}}return r}
 function teacherSheet(t){const sm=teacherSummary(t);
   return teacherSheet0(t)+(sm.length?`<div style="margin-top:12px;font-size:14px"><b>Lớp – môn dạy:</b> ${sm.map(r=>`<span class="chip n" style="display:inline-block;margin:3px">${esc(r[0])}: ${r[1]} tiết</span>`).join("")}</div>`:"")}
 function teacherSheet0(t){
@@ -1255,7 +1316,7 @@ function teacherSheet0(t){
   sessRows().forEach(([s,lab,n],si)=>{for(let p=0;p<n;p++){h+=`<tr class="${si&&!p?"sep":""}">`+(p?"":`<td class="bu" rowspan="${n}">${lab}</td>`)+`<td class="ti">Tiết ${p+1}</td>`;
     for(let d=0;d<S.days;d++){const k=d+"-"+s+"-"+p,a=r[k];
       if(t.off&&t.off[d]&&!a){h+=`<td class="slot"><div class="cell off">Nghỉ</div></td>`;continue}
-      h+=`<td class="slot">`+(a?`<div class="cell" style="background:${a.length>1?"var(--bad-bg)":COLORS[a[0].x.c]};border-left-color:${a.length>1?"var(--bad)":BORDERS[a[0].x.c]}">${a.map(o=>esc(o.c.name)).join(" + ")}<small>${esc(a[0].x.name)}${a.length>1?" — TRÙNG GIỜ":""}</small></div>`:`<div class="cell empty"></div>`)+"</td>"}
+      h+=`<td class="slot">`+(a?`<div class="cell" style="background:${a.length>1?"var(--bad-bg)":COLORS[a[0].x.c]};border-left-color:${a.length>1?"var(--bad)":BORDERS[a[0].x.c]}">${a.map(o=>esc(o.c.name)).join(" + ")}<small>${esc(lbl(a[0]))}${a.length>1?" — TRÙNG GIỜ":""}</small></div>`:`<div class="cell empty"></div>`)+"</td>"}
     h+="</tr>"}});
   return h+"</tbody></table>";
 }
@@ -1267,7 +1328,7 @@ function masterSheet(plain,ev){
     rows.forEach(([s,lab,n],si)=>{for(let p=0;p<n;p++){h+=`<tr class="${first&&d?"dsep":""}">`+(first?`<td class="dd" rowspan="${per}">${DAY_SHORT[d]}</td>`:"")+(p?"":`<td class="ss" rowspan="${n}">${s==="S"?"Sáng":"Chiều"}</td>`)+`<td class="pp">${p+1}</td>`;first=false;
       for(const c of cs){const k=d+"-"+s+"-"+p,x=S.tkb&&S.tkb[c.id]&&subj(S.tkb[c.id][k]);const t=x&&tAt(c,k,x);
         const ok=slotsOf(c).some(z=>z.k===k);
-        h+=`<td class="m ${!plain&&ev&&ev.bad.has(c.id+"|"+k)?"bad":""}" style="${x?`background:${COLORS[x.c]}`:ok?"":"background:#f1f1f5"}">${x?esc(x.short)+(t?`<small>${esc(shortName(tch(t).name))}</small>`:""):""}</td>`}
+        h+=`<td class="m ${!plain&&ev&&ev.bad.has(c.id+"|"+k)?"bad":""}" style="${x?`background:${COLORS[x.c]}`:ok?"":"background:#f1f1f5"}">${x?esc(labelAt(c,k,x,true))+(t?`<small>${esc(shortName(tch(t).name))}</small>`:""):""}</td>`}
       h+="</tr>"}});}
   return h+"</tbody></table>";
 }
@@ -1404,8 +1465,35 @@ function relinkTkb(){
     if(byList)cl.gvcn=byList.id;else if(shl&&a[shl.id])cl.gvcn=a[shl.id];else if(cl.gvcn&&!tch(cl.gvcn))cl.gvcn="";
     if(shl&&a[shl.id]&&a[shl.id]===cl.gvcn)a[shl.id]="__gvcn"}
   for(const t of S.teachers)if(t.fromTkb){const m={};for(const kk in tcount){const[,xid,tt]=kk.split("|");if(tt===t.id&&!homeroomSub(subj(xid)))m[xid]=(m[xid]||0)+tcount[kk]}const b=Object.keys(m).sort((a,b)=>m[b]-m[a])[0];if(b)t.subj=b}
+  deriveParts();
   const linked=new Set(cells.filter(c=>c.tid&&!tch(c.tid).fromTkb).map(c=>c.tid)).size;
   return{linked,temp};
+}
+
+/* ---- tự nhận phân môn khi một lớp có nhiều GV cùng dạy KHTN / LS-ĐL ---- */
+function partGuess(t,c,x){
+  if(!t||!partsOf(x))return"";const isK=x.short==="KHTN";
+  const PRE=isK?{ly:"Li",li:"Li",l:"Li",vl:"Li",sinh:"Sinh",s:"Sinh",hoa:"Hoa",h:"Hoa"}:{s:"Su",su:"Su",ls:"Su",d:"Dia",dia:"Dia",dl:"Dia"};
+  const num=c.name.replace(/^\d+A/i,"");
+  for(const m of String(t.teachText||"").matchAll(/([A-Za-zÀ-ỹĐđ]*)\s*([6-9])A((?:\d{1,2},?)+)/g)){
+    if(String(c.grade)===m[2]&&m[3].split(",").includes(num)){const p=PRE[norm(m[1])];if(p)return p}}
+  const RX={Li:/vat l|\bly\b|\bli\b/,Hoa:/hoa/,Sinh:/sinh/,Su:/lich su|\bsu\b/,Dia:/dia/};
+  const tryTxt=v=>{v=norm(v||"");const h=partsOf(x).filter(p=>RX[p[0]].test(v));return h.length===1?h[0][0]:""};
+  return tryTxt(t.subjText)||tryTxt(t.degree)||""}
+function deriveParts(){
+  S.split={};S.tkbP={};const freq={};
+  for(const c of S.classes){const g=S.tkb[c.id]||{},by={};
+    for(const k in g){const x=subj(g[k]);if(!partsOf(x))continue;const t=tAt(c,k,x)||"_";((by[x.id]=by[x.id]||{})[t]=by[x.id][t]||[]).push(k)}
+    for(const xid in by){const x=subj(xid),T=Object.keys(by[xid]);if(T.length<2)continue;
+      const used=new Set(),map={};
+      T.forEach(t=>{const p=partGuess(tch(t),c,x);if(p&&!used.has(p)){map[t]=p;used.add(p)}});
+      const rest=partsOf(x).map(p=>p[0]).filter(p=>!used.has(p));T.forEach(t=>{if(!map[t])map[t]=rest.shift()||partsOf(x)[partsOf(x).length-1][0]});
+      const sp=(S.split[c.id]=S.split[c.id]||{})[xid]={};partsOf(x).forEach(p=>sp[p[0]]="");
+      const per={};T.forEach(t=>{const key=map[t];if(t!=="_")sp[key]=t;by[xid][t].forEach(k=>{(S.tkbP[c.id]=S.tkbP[c.id]||{})[k]=key;per[key]=(per[key]||0)+1})});
+      partsOf(x).forEach(p=>{const f=((freq[xid+"|"+c.grade]=freq[xid+"|"+c.grade]||{})[p[0]]=freq[xid+"|"+c.grade][p[0]]||{});const v=per[p[0]]||0;f[v]=(f[v]||0)+1})}}
+  S.partN=S.partN||{};
+  for(const key in freq){const[xid,g]=key.split("|");const o=(S.partN[xid]=S.partN[xid]||{})[g]={};
+    for(const p in freq[key]){const f=freq[key][p];o[p]=+Object.keys(f).sort((a,b)=>f[b]-f[a])[0]}}
 }
 
 /* ---------- Tải lên danh sách giáo viên / bảng phân công ---------- */
@@ -1436,7 +1524,7 @@ function importTeachers(inp){
           rows=R;H=hEnd-1;sheet=n;C={name,ho,ten,stt:first.findIndex(v=>v==="stt"||v==="tt"),
             alias:fi(/ten (tren|trong|goi|tat)|ten tkb/),subj:fi(/mon day|^mon\b|mon hoc|bo mon|to chuyen mon|day mon|mon giang day/),
             teach:fi(/giang day|lop day|day lop/),cn:fi(/kiem nhiem|chu nhiem|lop cn/),quota:fi(/so tiet quy dinh|dinh muc/),
-            site:fi(/diem truong|^diem\b|co so|dia diem|noi cong tac|phan hieu/),cap:fi(/^(cap|cap hoc|bac hoc|cap day)$/),role:fi(/chuc vu|chuc danh/),sex:fi(/gioi tinh|^nu$|^phai$/)};
+            site:fi(/diem truong|^diem\b|co so|dia diem|noi cong tac|phan hieu/),cap:fi(/^(cap|cap hoc|bac hoc|cap day)$/),role:fi(/chuc vu|chuc danh/),degree:fi(/trinh do/),sex:fi(/gioi tinh|^nu$|^phai$/)};
           if(C.cn===C.teach)C.cn=-1;break}}
       if(rows)break}
     if(!rows){alert("Không tìm thấy cột \"Họ và tên\" trong file. Thầy bấm \"File mẫu DS GV\" để xem cách điền.");return}
@@ -1455,7 +1543,7 @@ function importTeachers(inp){
       const subjTxt=g(r,C.subj),subjs=matchSubjs(subjTxt+";"+(cap==="THCS"?teachTxt.replace(/[0-9A-Z,]+$/,""):""));
       const cnM=norm(cnTxt).match(/(?:cn\s*)?([1-9])a(\d{1,2})/);
       const info={name,alias:g(r,C.alias)||lastWord(name),site:st,cap,subj:subjs[0]||"",subjs,role,sex:g(r,C.sex),
-        cn:cnM?(cnM[1]+"A"+cnM[2]):"",teach:thcsCls,teachText:teachTxt,subjText:subjTxt};
+        cn:cnM?(cnM[1]+"A"+cnM[2]):"",teach:thcsCls,teachText:teachTxt,subjText:subjTxt,degree:g(r,C.degree)};
       // trùng họ tên: cùng người (dòng lặp) hay 2 người khác nhau?
       const key=name.toLowerCase(),sig=norm(teachTxt+"|"+cnTxt);
       if(seenRow[key]&&seenRow[key]!==sig){let n=2;while(S.teachers.some(t=>t.name.toLowerCase()===(name+" ("+n+")").toLowerCase()))n++;info.name=name+" ("+n+")"}
@@ -1543,7 +1631,7 @@ function classRows(c){const g=(S.tkb&&S.tkb[c.id])||{},sl=new Set(slotsOf(c).map
 function teacherRows(t){const r=teacherGrid(t);return plainGrid("",k=>r[k]?r[k].map(o=>o.c.name+" - "+o.x.short).join(" + "):"")}
 function masterRows(){const rows=[["Thứ","Buổi","Tiết",...S.classes.map(c=>c.name)]];
   for(let d=0;d<S.days;d++)sessRows().forEach(([s,lab,n])=>{for(let p=0;p<n;p++)rows.push([DAY_SHORT[d],lab,p+1,...S.classes.map(c=>{const k=d+"-"+s+"-"+p,x=S.tkb[c.id]&&subj(S.tkb[c.id][k]);if(!x)return"";const t=tAt(c,k,x);return x.short+(t?" - "+tch(t).name:"")})])});return rows}
-function teacherSummary(t){const r=teacherGrid(t),m={};for(const k in r)for(const o of r[k]){const key=o.c.name+" – "+o.x.name;m[key]=(m[key]||0)+1}
+function teacherSummary(t){const r=teacherGrid(t),m={};for(const k in r)for(const o of r[k]){const key=o.c.name+" – "+lbl(o);m[key]=(m[key]||0)+1}
   return Object.keys(m).sort((a,b)=>a.localeCompare(b,"vi",{numeric:true})).map(k=>[k,m[k]])}
 const safe=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D").replace(/[^\w\-]+/g,"_");
 function exportPng(){if(!S.tkb){toast("Chưa có TKB");return}if(!window.html2canvas){toast("Cần kết nối mạng để xuất PNG");return}
@@ -1602,6 +1690,13 @@ $("tchTbl").addEventListener("click",e=>{if(!e.target.dataset.del)return;const t
 $("pcTbl").addEventListener("change",e=>{const c=e.target.closest("tr").dataset.c;(S.assign[c]=S.assign[c]||{})[e.target.dataset.x]=e.target.value;persist();
   const L=teacherLoads();$("loadChips").innerHTML=S.teachers.map(t=>`<span class="chip ${(L[t.id]||0)>slotsAvail(t)?"bad":"n"}">${esc(t.name)}: ${L[t.id]||0} tiết</span>`).join("")});
 $("gSubj").onchange=renderGTch;
+$("partTbl").addEventListener("change",e=>{const tr=e.target.closest("tr[data-c]");if(!tr)return;const cid=tr.dataset.c;
+  if(e.target.dataset.mode){setSplit(cid,e.target.dataset.mode,e.target.value==="part")}
+  else if(e.target.dataset.part){const[xid,key]=e.target.dataset.part.split("|");((S.split[cid]=S.split[cid]||{})[xid]=S.split[cid][xid]||{})[key]=e.target.value}
+  persist();renderPc()});
+$("partNTbl").addEventListener("change",e=>{const v=e.target.dataset.pn;if(!v)return;const[xid,g,key]=v.split("|");const x=subj(xid);S.partN=S.partN||{};
+  const P=((S.partN[xid]=S.partN[xid]||{})[g]=S.partN[xid][g]||defaultPartN(x,g));P[key]=Math.max(0,parseInt(e.target.value)||0);persist();renderPc()});
+$("partBtns").addEventListener("click",e=>{const v=e.target.dataset.all;if(!v)return;const[xid,m]=v.split("|");S.classes.forEach(c=>{if(nFor(subj(xid),c))setSplit(c.id,xid,m==="part")});persist();renderPc();toast(m==="part"?"Đã chuyển tất cả lớp sang dạy theo phân môn — chọn GV từng phân môn":"Đã chuyển tất cả lớp sang dạy full")});
 $("siteTbl").addEventListener("change",e=>{const tr=e.target.closest("tr[data-id]");if(!tr)return;site(tr.dataset.id)[e.target.dataset.f]=e.target.value;persist();renderCls()});
 $("siteTbl").addEventListener("click",e=>{if(!e.target.dataset.del)return;const x=site(e.target.closest("tr").dataset.id);
   if(!confirm(`Xóa điểm trường "${x.name}"? Lớp và GV thuộc điểm này sẽ thành "chưa chọn điểm".`))return;

@@ -15,9 +15,9 @@ function gridOf(kind,o){
     const part=[];
     for(let p=0;p<n;p++){
       const cells=days.map((_,d)=>{const k=d+"-"+s+"-"+p;
-        if(kind==="class"){if(!avail.has(k))return{off:1};const x=S.tkb&&S.tkb[o.id]&&subj(S.tkb[o.id][k]);if(!x)return null;const t=tAt(o,k,x);return{main:x.name,sub:t?tch(t).name:"",c:x.c}}
+        if(kind==="class"){if(!avail.has(k))return{off:1};const x=S.tkb&&S.tkb[o.id]&&subj(S.tkb[o.id][k]);if(!x)return null;const t=tAt(o,k,x);return{main:labelAt(o,k,x),sub:t?tch(t).name:"",c:x.c}}
         const a=TG[k];if(!a){return o.off&&o.off[d]?{off:1}:null}
-        return{main:a.map(z=>z.c.name).join(" + "),sub:a[0].x.name,c:a[0].x.c,bad:a.length>1}});
+        return{main:a.map(z=>z.c.name).join(" + "),sub:lbl(a[0]),c:a[0].x.c,bad:a.length>1}});
       part.push({s,lab,p,time:(S.times||{})[s+"-"+p]||"",cells})}
     // lớp chỉ học 1 buổi: bỏ buổi còn lại
     if(kind==="class"&&part.every(r=>r.cells.every(c=>c&&c.off)))continue;
@@ -76,7 +76,7 @@ function wordMaster(){
   for(let d=0;d<S.days;d++){let first=true;SR.forEach(([s,lab,n])=>{for(let p=0;p<n;p++){const top=first&&d?"border-top:2pt solid #"+BRAND+";":"";
     h+="<tr>"+(first?`<td rowspan="${per}" style="${B}background:#EEF0FF;font-weight:bold;text-align:center;font-size:10pt;${top}">${DAY_SHORT[d]}</td>`:"")+(p?"":`<td rowspan="${n}" style="${B}${top}background:#F7F8FD;text-align:center;font-size:9pt">${lab==="SÁNG"?"Sáng":"Chiều"}</td>`)+`<td style="${B}${top}text-align:center;font-size:9pt">${p+1}</td>`;first=false;
     for(const c of cs){const k=d+"-"+s+"-"+p,x=S.tkb[c.id]&&subj(S.tkb[c.id][k]);const t=x&&tAt(c,k,x);
-      h+=`<td style="${B}${top}text-align:center;font-size:8.5pt;${x?"background:#"+hex6(COLORS[x.c]):""}">${x?"<b>"+esc(x.short)+"</b>"+(t?"<br>"+esc(lastWord(tch(t).name)):""):""}</td>`}
+      h+=`<td style="${B}${top}text-align:center;font-size:8.5pt;${x?"background:#"+hex6(COLORS[x.c]):""}">${x?"<b>"+esc(labelAt(c,k,x,true))+"</b>"+(t?"<br>"+esc(lastWord(tch(t).name)):""):""}</td>`}
     h+="</tr>"}})}
   return h+"</table>"}
 
@@ -142,7 +142,7 @@ function excelMaster(wb){
         const st=(j,v,font,bg)=>{const c=ws.getCell(r,j);c.value=v;c.font={name:F,size:10,...font};if(bg)c.fill=fill(bg);c.alignment={horizontal:"center",vertical:"middle",wrapText:true};c.border={...XBOX,top}};
         st(1,DAY_SHORT[d],{bold:true},"EEF0FF");st(2,lab==="SÁNG"?"Sáng":"Chiều",{},"F7F8FD");st(3,p+1,{},"F7F8FD");
         cs.forEach((c,ci)=>{const k=d+"-"+s+"-"+p,x=S.tkb[c.id]&&subj(S.tkb[c.id][k]);const t=x&&tAt(c,k,x);
-          st(4+ci,x?{richText:[{text:x.short,font:{name:F,bold:true,size:10}},...(t?[{text:"\n"+lastWord(tch(t).name),font:{name:F,italic:true,size:9}}]:[])]}:"",{},x?hex6(COLORS[x.c]):null)});
+          st(4+ci,x?{richText:[{text:labelAt(c,k,x,true),font:{name:F,bold:true,size:10}},...(t?[{text:"\n"+lastWord(tch(t).name),font:{name:F,italic:true,size:9}}]:[])]}:"",{},x?hex6(COLORS[x.c]):null)});
         ws.getRow(r).height=28;r++}
       ws.mergeCells(s0,2,r-1,2)});
     ws.mergeCells(d0,1,r-1,1)}
