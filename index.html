@@ -319,7 +319,8 @@ ul.iss{margin:6px 0 0;padding-left:20px;line-height:1.7;max-height:320px;overflo
       <div class="seg" id="viewSeg"><button data-v="class" class="on">Theo lớp</button><button data-v="teacher">Theo giáo viên</button><button data-v="master">Tổng hợp toàn trường</button></div>
       <select class="t" id="pickSel" style="width:auto;min-width:200px"></select>
       <div class="sp"></div>
-      <button class="btn gold" onclick="runSolve()">🔀 Xếp lại toàn trường</button>
+      <button class="btn pri" onclick="fixConflicts()" title="Giữ nguyên TKB đang có, chỉ dời những tiết bị trùng">🩹 Sửa chỗ trùng (giữ TKB)</button>
+      <button class="btn gold" onclick="runSolve()" title="Xếp mới cả trường, ra TKB khác TKB đang có">🔀 Xếp lại toàn trường</button>
     </div>
     <div class="toolbar">
       <button class="btn" onclick="undo()" id="bUndo">↶ Hoàn tác</button>
@@ -1158,7 +1159,10 @@ function solveOnce(ctx){
   const ck=(cid,u,d)=>cid+"|"+u.x.id+"|"+(u.part||"")+"|"+d;
   const put=(cid,u,s)=>{grid[cid][s.k]=u;if(u.t)tb[u.t+"|"+s.k]=cid;const a=ck(cid,u,s.d);cnt[a]=(cnt[a]||0)+1;load[cid+"|"+s.d]=(load[cid+"|"+s.d]||0)+1;if(u.t)tload[u.t+"|"+s.d]=(tload[u.t+"|"+s.d]||0)+1;tsAdd(u.t,s,cid,1)};
   const del=(cid,s)=>{const u=grid[cid][s.k];delete grid[cid][s.k];if(u.t)delete tb[u.t+"|"+s.k];cnt[ck(cid,u,s.d)]--;load[cid+"|"+s.d]--;if(u.t)tload[u.t+"|"+s.d]--;tsAdd(u.t,s,cid,-1);return u};
-  const tFree=(t,s)=>!t||(!tb[t+"|"+s.k]&&!ctx.offOf[t][s.d]);
+  // GV đang dạy ở điểm trường khác trong cùng buổi? (bỏ qua 1 tiết của lớp "ign" đang được dời đi)
+  const siteClash=(t,s,cid,ign)=>{if(!t||!ctx.multi)return false;const m=tsite[t+"|"+s.d+s.s];if(!m)return false;const my=ctx.siteOf[cid];
+    for(const st in m){let v=m[st];if(ign&&st===ctx.siteOf[ign])v--;if(v>0&&st!==my)return true}return false};
+  const tFree=(t,s,cid)=>!t||(!tb[t+"|"+s.k]&&!ctx.offOf[t][s.d]&&!siteClash(t,s,cid));
   const units=[];
   for(const o of ctx.classes){
     const c=o.c,taken={};
@@ -1189,12 +1193,12 @@ function solveOnce(ctx){
     return c};
   const nextOf=(o,s)=>o.sl.find(z=>z.d===s.d&&z.s===s.s&&z.p===s.p+1);
   const placeOne=u=>{let best=null,bc=1e9;
-    for(const s of u.o.sl){if(grid[u.cid][s.k]||!tFree(u.t,s))continue;const c=cost(u,s);if(c<bc){bc=c;best=s}}
+    for(const s of u.o.sl){if(grid[u.cid][s.k]||!tFree(u.t,s,u.cid))continue;const c=cost(u,s);if(c<bc){bc=c;best=s}}
     if(best)put(u.cid,u,best);else unplaced.push(u)};
   for(const u of units){
     if(u.len!==2){placeOne(u);continue}
     let best=null,bc=1e9;
-    for(const s of u.o.sl){const s2=nextOf(u.o,s);if(!s2||grid[u.cid][s.k]||grid[u.cid][s2.k]||!tFree(u.t,s)||!tFree(u.t,s2))continue;const c=cost(u,s);if(c<bc){bc=c;best=[s,s2]}}
+    for(const s of u.o.sl){const s2=nextOf(u.o,s);if(!s2||grid[u.cid][s.k]||grid[u.cid][s2.k]||!tFree(u.t,s,u.cid)||!tFree(u.t,s2,u.cid))continue;const c=cost(u,s);if(c<bc){bc=c;best=[s,s2]}}
     if(best){put(u.cid,u,best[0]);put(u.cid,u,best[1])}
     else{const a={...u,len:1},b={...u,len:1};placeOne(a);placeOne(b)}
   }
@@ -1205,12 +1209,12 @@ function solveOnce(ctx){
       let done=false;const sl=u.o.sl,g=grid[u.cid];
       // A: ô lớp còn trống nhưng GV đang dạy lớp khác -> dời tiết đó của GV
       for(const s of sl){if(done)break;if(g[s.k]||(u.t&&ctx.offOf[u.t][s.d]))continue;
-        const c2=u.t&&tb[u.t+"|"+s.k];if(!c2||pins[c2+s.k]||grid[c2][s.k].len===2)continue;const o2=ctx.classes.find(o=>o.c.id===c2);
-        for(const f of o2.sl){if(grid[c2][f.k]||!tFree(u.t,f))continue;const v=del(c2,s);put(c2,v,f);put(u.cid,u,s);done=true;break}}
+        const c2=u.t&&tb[u.t+"|"+s.k];if(!c2||pins[c2+s.k]||grid[c2][s.k].len===2||siteClash(u.t,s,u.cid,c2))continue;const o2=ctx.classes.find(o=>o.c.id===c2);
+        for(const f of o2.sl){if(grid[c2][f.k]||!tFree(u.t,f,c2))continue;const v=del(c2,s);put(c2,v,f);put(u.cid,u,s);done=true;break}}
       // B: đổi chỗ với một tiết khác trong lớp
       for(const s of sl){if(done)break;const z=g[s.k];if(!z||z.pin||z.len===2||!(u.t?!tb[u.t+"|"+s.k]||tb[u.t+"|"+s.k]===u.cid:true)||(u.t&&ctx.offOf[u.t][s.d]))continue;
-        if(u.t&&tb[u.t+"|"+s.k])continue;
-        for(const f of sl){if(g[f.k]||!tFree(z.t,f))continue;del(u.cid,s);put(u.cid,z,f);put(u.cid,u,s);done=true;break}}
+        if(u.t&&tb[u.t+"|"+s.k])continue;if(siteClash(u.t,s,u.cid))continue;
+        for(const f of sl){if(g[f.k]||!tFree(z.t,f,u.cid))continue;del(u.cid,s);put(u.cid,z,f);put(u.cid,u,s);done=true;break}}
       if(!done)still.push(u);
     }
     unplaced=still;
@@ -1218,7 +1222,7 @@ function solveOnce(ctx){
   // dồn ô trống lên trước nếu GV rảnh
   for(const o of ctx.classes){const g=grid[o.c.id];const by={};o.sl.forEach(s=>(by[s.d+s.s]=by[s.d+s.s]||[]).push(s));
     for(const arr of Object.values(by))for(let i=0;i<arr.length;i++){if(g[arr[i].k])continue;
-      for(let j=i+1;j<arr.length;j++){const w=g[arr[j].k];if(!w||w.pin||w.len===2||!tFree(w.t,arr[i]))continue;del(o.c.id,arr[j]);put(o.c.id,w,arr[i]);break}}}
+      for(let j=i+1;j<arr.length;j++){const w=g[arr[j].k];if(!w||w.pin||w.len===2||!tFree(w.t,arr[i],o.c.id))continue;del(o.c.id,arr[j]);put(o.c.id,w,arr[i]);break}}}
   const out={},outT={},outP={};for(const cid in grid){out[cid]={};outT[cid]={};for(const k in grid[cid]){const u=grid[cid][k];out[cid][k]=u.x.id;outT[cid][k]=u.t||"";if(u.part)(outP[cid]=outP[cid]||{})[k]=u.part}}
   return{tkb:out,tkbT:outT,tkbP:outP,unplaced:unplaced.length,score:unplaced.length*10000+evaluateAll(out,outT,outP).penalty};
 }
@@ -1247,9 +1251,11 @@ function evaluateAll(tkb,T,P){
   for(const key in tmap)if(tmap[key].length>1){const[t,k]=key.split("|");const[d,s,p]=k.split("-");penalty+=5000;
     issues.unshift({t:"bad",m:`TRÙNG GIỜ: ${tch(t).name} dạy ${tmap[key].map(c=>c.name).join(" và ")} cùng lúc (${DAY_NAMES[d].toLowerCase()}, ${s==="S"?"sáng":"chiều"} tiết ${+p+1})`});
     tmap[key].forEach(c=>bad.add(c.id+"|"+k))}
-  if(S.sites&&new Set(S.classes.map(c=>c.site||"")).size>1){const ms={};for(const key in tmap){const[t,k]=key.split("|");const[d,s]=k.split("-");const g=ms[t+"|"+d+"|"+s]=ms[t+"|"+d+"|"+s]||new Set();tmap[key].forEach(c=>g.add(c.site||""))}
-    for(const key in ms)if(ms[key].size>1){const[t,d,s]=key.split("|");penalty+=40;issues.push({t:"warn",m:`${tch(t).name} dạy ở 2 điểm trường trong buổi ${s==="S"?"sáng":"chiều"} ${DAY_NAMES[d].toLowerCase()}`})}}
-  return{penalty,issues,bad,conflicts:Object.values(tmap).filter(a=>a.length>1).length};
+  let siteX=0;
+  if(S.sites&&new Set(S.classes.map(c=>c.site||"")).size>1){const ms={},cells={};for(const key in tmap){const[t,k]=key.split("|");const[d,s]=k.split("-");const kk=t+"|"+d+"|"+s;(ms[kk]=ms[kk]||new Set());tmap[key].forEach(c=>{ms[kk].add(c.site||"");(cells[kk]=cells[kk]||[]).push(c.id+"|"+k)})}
+    for(const key in ms)if(ms[key].size>1){const[t,d,s]=key.split("|");siteX++;penalty+=3000;cells[key].forEach(x=>bad.add(x));
+      issues.unshift({t:"bad",m:`2 ĐIỂM TRƯỜNG: ${tch(t).name} dạy ở ${[...ms[key]].map(id=>(site(id)||{}).name||"?").join(" và ")} trong cùng buổi ${s==="S"?"sáng":"chiều"} ${DAY_NAMES[d].toLowerCase()}`})}}
+  return{penalty,issues,bad,conflicts:Object.values(tmap).filter(a=>a.length>1).length,siteX};
 }
 function precheck(){
   const errs=[];if(!S.classes.length)errs.push("Chưa có lớp nào (bước 2).");
@@ -1264,18 +1270,52 @@ async function runSolve(){
   if(errs.length&&!confirm("Cần xem lại:\n• "+errs.join("\n• ")+"\n\nVẫn tiếp tục xếp?"))return;
   if(!S.classes.length)return;
   solving=true;$("overlay").classList.remove("hide");const ctx=buildCtx();let best=null,i=0;const t0=performance.now();
+  const prev=S.tkb?JSON.parse(JSON.stringify(S.tkb)):null;let prevN=0;if(prev)for(const c in prev)prevN+=Object.keys(prev[c]).length;
+  const same=r=>{if(!prev)return 0;let k=0;for(const c in r.tkb){const p=prev[c];if(!p)continue;for(const x in r.tkb[c])if(p[x]===r.tkb[c][x])k++}return k};
   const budget=Math.min(12000,2500+S.classes.length*250);
   while(performance.now()-t0<budget){
-    for(let j=0;j<5;j++){const r=solveOnce(ctx);i++;if(!best||r.score<best.score)best=r}
+    for(let j=0;j<5;j++){const r=solveOnce(ctx);r.base=r.score;r.same=same(r);r.score+=r.same*3;i++;if(!best||r.score<best.score)best=r}
     $("ovMsg").innerHTML=`Đã thử ${i} phương án<br>Tốt nhất: ${best.unplaced?`còn <b>${best.unplaced}</b> tiết chưa xếp được`:"xếp đủ tất cả tiết ✔"}`;
-    if(best.score<1&&i>40)break;
+    if(best.base<1&&i>40&&(!prev||best.same<prevN*0.25))break;
     await new Promise(r=>setTimeout(r,0));
   }
   if(S.tkb)pushHistory();S.tkb=best.tkb;S.tkbT=best.tkbT;S.tkbP=best.tkbP;persist();solving=false;$("overlay").classList.add("hide");
   if(!pick||!cls(pick))pick=S.classes[0].id;view=view||"class";showTab("tkb");
-  const ev=evaluateAll();
-  toast(best.unplaced?`⚠️ Còn ${best.unplaced} tiết chưa xếp được — xem tab Đối soát`:ev.conflicts?`⚠️ Có ${ev.conflicts} chỗ trùng giờ GV`:`✔ Đã xếp xong ${S.classes.length} lớp, không trùng giờ giáo viên`,4000);
+  const ev=evaluateAll();const diff=prev&&prevN?Math.round(100-best.same*100/prevN):null;
+  toast((best.unplaced?`⚠️ Còn ${best.unplaced} tiết chưa xếp được — xem tab Đối soát`:ev.conflicts?`⚠️ Có ${ev.conflicts} chỗ trùng giờ GV`:ev.siteX?`⚠️ ${ev.siteX} chỗ GV dạy 2 điểm trong 1 buổi`:`✔ Đã xếp xong ${S.classes.length} lớp, không trùng giờ GV, không GV nào chạy 2 điểm/buổi`)+(diff!=null?` • Khác TKB cũ ${diff}% số tiết`:""),6000);
 }
+
+/* ---------- Sửa chỗ trùng: giữ nguyên TKB, chỉ đổi chỗ những tiết bị trùng ---------- */
+function hardList(){ // các ô đang vi phạm điều kiện bắt buộc
+  const tm={},out=[],multi=new Set(S.classes.map(c=>c.site||"")).size>1;
+  for(const c of S.classes){const g=S.tkb[c.id]||{};for(const k in g){const x=subj(g[k]);if(!x)continue;const t=tAt(c,k,x);if(!t)continue;(tm[t+"|"+k]=tm[t+"|"+k]||[]).push(c);
+    if(tch(t).off&&tch(t).off[+k.split("-")[0]])out.push({c,k,why:"nghỉ"})}}
+  for(const key in tm)if(tm[key].length>1){const k=key.split("|")[1];tm[key].forEach(c=>out.push({c,k,why:"trùng"}))}
+  if(multi){const ms={};for(const key in tm){const[t,k]=key.split("|");const[d,s]=k.split("-");tm[key].forEach(c=>{(ms[t+"|"+d+s]=ms[t+"|"+d+s]||[]).push({c,k})})}
+    for(const key in ms){const L=ms[key],sites=new Set(L.map(o=>o.c.site||""));if(sites.size>1){const cnt={};L.forEach(o=>cnt[o.c.site||""]=(cnt[o.c.site||""]||0)+1);
+      L.forEach(o=>out.push({c:o.c,k:o.k,why:"2 điểm"}))}}}
+  return out}
+function swapCells(c,a,b){
+  const g=S.tkb[c.id],T=(S.tkbT=S.tkbT||{})[c.id]=S.tkbT[c.id]||{},P=(S.tkbP=S.tkbP||{})[c.id]=S.tkbP[c.id]||{};
+  const ta=g[a]?tAt(c,a):"",tb=g[b]?tAt(c,b):"";const xa=g[a],xb=g[b],pa=P[a],pb=P[b];
+  if(xb)g[a]=xb;else delete g[a];if(xa)g[b]=xa;else delete g[b];
+  T[a]=xb?tb:"";T[b]=xa?ta:"";if(pb)P[a]=pb;else delete P[a];if(pa)P[b]=pa;else delete P[b]}
+async function fixConflicts(){
+  if(!S.tkb){toast("Chưa có TKB");return}
+  const badN=()=>evaluateAll().issues.filter(i=>i.t==="bad").length;let H=hardList();if(!H.length){toast("✔ TKB hiện tại không có chỗ trùng nào — không cần sửa");return}
+  pushHistory();$("overlay").classList.remove("hide");$("ovMsg").textContent=`Đang sửa ${badN()} chỗ trùng, giữ nguyên các tiết khác…`;await new Promise(r=>setTimeout(r,30));
+  const start=badN();let moved=0;const fixedPin=(c,k)=>{const x=subj((S.tkb[c.id]||{})[k]);return x&&(isFlag(x)||isSHL(x))};
+  for(let round=0;round<4&&H.length;round++){
+    for(const h of H){
+      if(!hardList().some(o=>o.c===h.c&&o.k===h.k))continue;
+      const c=h.c,base=hardList().length,basePen=evaluateAll().penalty;let best=null,bv=[base,basePen];
+      for(const f of slotsOf(c)){if(f.k===h.k||fixedPin(c,f.k)||fixedPin(c,h.k))continue;
+        swapCells(c,h.k,f.k);const v=[hardList().length,evaluateAll().penalty];swapCells(c,h.k,f.k);
+        if(v[0]<bv[0]||(v[0]===bv[0]&&v[1]<bv[1]-1)){bv=v;best=f.k}}
+      if(best){swapCells(c,h.k,best);moved++}}
+    H=hardList();$("ovMsg").textContent=`Còn ${badN()} chỗ trùng…`;await new Promise(r=>setTimeout(r,0))}
+  $("overlay").classList.add("hide");persist();renderAll();const left=badN();
+  toast(left?`Đã sửa ${start-left}/${start} chỗ trùng (đổi chỗ ${moved} tiết). Còn ${left} chỗ phải sửa tay hoặc bấm "Xếp lại toàn trường".`:`✔ Đã sửa hết ${start} chỗ trùng, chỉ đổi chỗ ${moved} tiết; các tiết khác giữ nguyên.`,7000)}
 
 /* ---------- 4. Xem TKB ---------- */
 function pushHistory(){history.push(JSON.stringify({tkb:S.tkb,tkbT:S.tkbT||{},tkbP:S.tkbP||{}}));if(history.length>30)history.shift();$("bUndo").disabled=false}
